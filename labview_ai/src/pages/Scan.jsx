@@ -4,9 +4,11 @@ import { collection, addDoc, serverTimestamp, query, where, orderBy, limit, getD
 import { useNavigate } from 'react-router-dom';
 import Tesseract from 'tesseract.js';
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import { motion, AnimatePresence } from 'framer-motion';
+import { ArrowLeft, FilePlus, Camera, Activity, Home, FileText, User } from 'lucide-react';
 
 // API Key Gemini
-const genAI = new GoogleGenerativeAI("AIzaSyAkNQDM89T-EcM_3_uiRJFLD95_PbMs2cg");
+const genAI = new GoogleGenerativeAI("AIzaSyBGQKRDz-5TKbeOTdOAtPssphrTHXb0LkY");
 
 export default function Scan() {
     const [loading, setLoading] = useState(false);
@@ -143,7 +145,7 @@ export default function Scan() {
                     hemoglobin: Number(aiResult.main_metrics?.hemoglobin) || 0,
                     cholesterol: Number(aiResult.main_metrics?.cholesterol) || 0,
                     uric_acid: Number(aiResult.main_metrics?.uric_acid) || 0,
-                    all_data: aiResult.all_data || {}, // MENYIMPAN DATA TAMBAHAN
+                    all_data: aiResult.all_data || {}, 
                     createdAt: serverTimestamp()
                 });
             }
@@ -156,90 +158,202 @@ export default function Scan() {
     };
 
     return (
-        <div className="min-h-screen bg-white font-sans text-slate-900 pb-32">
-            <header className="px-6 py-4 flex items-center justify-between border-b border-slate-50 sticky top-0 bg-white z-50">
-                <button onClick={() => navigate('/dashboard')} className="text-xl">←</button>
-                <h1 className="font-black text-sm uppercase tracking-tighter italic text-[#48A878]">Smart Ingestion</h1>
-                <div className="w-6"></div>
+        <div style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }} className="min-h-screen bg-[#0d1117] text-white pb-32 flex flex-col items-center">
+            {/* HEADER SECTION */}
+            <header className="w-full max-w-md px-6 py-6 flex flex-col sticky top-0 bg-[#0d1117]/80 backdrop-blur-lg z-50 border-b border-[#1e2e40]">
+                <div className="flex items-center justify-between w-full mb-4">
+                    <button onClick={() => navigate('/dashboard')} className="text-white hover:text-[#1D9E75] transition-colors p-2 -ml-2 rounded-full hover:bg-[#161d28]">
+                        <ArrowLeft size={20} strokeWidth={2.5} />
+                    </button>
+                    <div className="w-6"></div>
+                </div>
+                <div>
+                    <h1 className="font-black text-[10px] text-[#4a6080] tracking-[0.4em] uppercase mb-1">
+                        Smart Ingestion
+                    </h1>
+                    <p className="text-white text-sm font-medium tracking-wide">
+                        Upload medical reports for AI analysis
+                    </p>
+                </div>
             </header>
 
-            <main className="max-w-md mx-auto p-6">
-                {step === 1 && (
-                    <div className="space-y-8 animate-in fade-in duration-500">
-                        <div className="bg-[#E8F5EE] p-5 rounded-[25px] border border-[#D1E9DB] flex gap-4">
-                            <span className="text-xl">✨</span>
-                            <p className="text-[11px] text-[#2D6A4F] font-semibold leading-relaxed">AI kami akan mengekstrak metrik kesehatan utama dan temuan medis lainnya dari laporan Anda.</p>
-                        </div>
-
-                        <div className="border-4 border-dashed border-[#D1E9DB] rounded-[40px] p-12 text-center relative group hover:bg-slate-50 transition-all cursor-pointer" onClick={() => fileInputRef.current.click()}>
-                            <div className="w-16 h-16 bg-[#E8F5EE] rounded-full flex items-center justify-center mx-auto mb-6 text-3xl text-[#48A878]">☁️</div>
-                            <h3 className="text-lg font-black tracking-tight">Tap to upload lab results</h3>
-                            <button className="mt-6 bg-[#48A878] text-white px-8 py-3 rounded-2xl font-black text-[10px] uppercase shadow-lg">Select File</button>
-                            <input type="file" ref={fileInputRef} accept="image/*,application/pdf" onChange={(e) => processFile(e.target.files[0])} className="hidden" />
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-4">
-                            <button onClick={() => fileInputRef.current.click()} className="bg-white border border-slate-100 py-4 rounded-2xl text-[10px] font-black uppercase text-slate-500 shadow-sm transition-all active:scale-95">📸 Take Photo</button>
-                            <button onClick={() => fileInputRef.current.click()} className="bg-white border border-slate-100 py-4 rounded-2xl text-[10px] font-black uppercase text-slate-500 shadow-sm transition-all active:scale-95">📄 Import PDF</button>
-                        </div>
-                    </div>
-                )}
-
-                {step === 2 && (
-                    <div className="space-y-10 animate-in fade-in duration-700 pt-10">
-                        <div className="text-center space-y-2">
-                            <h2 className="text-[#48A878] font-black text-sm uppercase italic tracking-tighter animate-pulse">Analyzing Document...</h2>
-                            <p className="text-[10px] text-slate-400 font-medium italic">Gemini AI is extracting biomarkers</p>
-                        </div>
-                        <div className="space-y-4">
-                            <div className="flex justify-between items-end px-1 text-[#48A878]">
-                                <p className="text-[11px] font-black uppercase tracking-widest italic">Progress</p>
-                                <p className="text-xl font-black">{progress}%</p>
-                            </div>
-                            <div className="w-full h-3 bg-slate-100 rounded-full overflow-hidden shadow-inner">
-                                <div className="h-full bg-[#48A878] transition-all duration-700 ease-out" style={{ width: `${progress}%` }}></div>
-                            </div>
-                        </div>
-                        <div className="space-y-3">
-                            {detectedValues.length > 0 ? detectedValues.map((item, idx) => (
-                                <div key={idx} className="bg-white border border-slate-100 p-5 rounded-[25px] flex justify-between items-center shadow-sm animate-in slide-in-from-bottom-2">
-                                    <span className="text-[11px] font-bold text-slate-700 uppercase">✓ {item.label}</span>
-                                    <span className="text-sm font-black text-[#0A1D37] italic">{item.value} <small className="text-[9px] text-slate-400 font-bold">{item.unit}</small></span>
+            <main className="flex-1 w-full max-w-md px-6 flex flex-col justify-center pb-12">
+                <AnimatePresence mode="wait">
+                    {step === 1 && (
+                        <motion.div 
+                            key="upload-hub"
+                            initial={{ scale: 0.9, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            exit={{ scale: 0.9, opacity: 0 }}
+                            transition={{ duration: 0.4, ease: "easeOut" }}
+                            className="w-full flex flex-col gap-6"
+                        >
+                            {/* CENTRAL UPLOAD HUB */}
+                            <motion.div 
+                                whileHover={{ scale: 1.02 }}
+                                whileTap={{ scale: 0.98 }}
+                                onClick={() => fileInputRef.current.click()}
+                                className="bg-[#161d28]/80 backdrop-blur-xl border border-dashed border-[#1e2e40] rounded-[50px] p-8 flex flex-col items-center justify-center cursor-pointer transition-all hover:bg-[#1e2e40]/40 group"
+                                style={{ minHeight: '380px' }}
+                            >
+                                <div className="w-24 h-24 rounded-full bg-[#1e2e40]/50 flex items-center justify-center mb-8 relative">
+                                    <div className="absolute inset-0 rounded-full bg-[#1D9E75] blur-xl opacity-20 group-hover:opacity-40 transition-opacity"></div>
+                                    <FilePlus size={40} className="text-[#1D9E75] relative z-10" strokeWidth={1.5} />
                                 </div>
-                            )) : (
-                                <p className="text-center text-[10px] text-slate-400 italic">Mencari parameter numerik...</p>
-                            )}
-                        </div>
-                        {progress === 100 && (
-                            <button onClick={() => setStep(3)} className="w-full bg-[#48A878] text-white p-6 rounded-[30px] font-black text-xs uppercase tracking-widest shadow-xl shadow-green-100 animate-in zoom-in">Confirm & Interpret ✨</button>
-                        )}
-                    </div>
-                )}
+                                <h3 className="text-xl font-bold tracking-tight mb-2 text-white">Select medical file</h3>
+                                <p className="text-sm font-medium text-[#4a6080] mb-8 text-center max-w-[200px]">
+                                    Supports PDF, JPG and PNG files up to 10MB
+                                </p>
+                                
+                                <button className="bg-[#1D9E75] hover:bg-[#1D9E75]/90 text-white px-8 py-4 rounded-2xl font-bold text-xs uppercase tracking-[0.2em] shadow-[0_0_20px_rgba(29,158,117,0.3)] transition-all flex items-center gap-2">
+                                    <Activity size={16} />
+                                    Select File
+                                </button>
+                                <input type="file" ref={fileInputRef} accept="image/*,application/pdf" onChange={(e) => processFile(e.target.files[0])} className="hidden" />
+                            </motion.div>
 
-                {step === 3 && (
-                    <div className="animate-in slide-in-from-bottom-10 duration-700 space-y-8">
-                        <div className="bg-white rounded-[50px] p-10 shadow-sm border border-slate-50 relative overflow-hidden">
-                            <div className="absolute top-0 right-0 w-40 h-40 bg-green-50/40 rounded-full -mr-16 -mt-16 blur-3xl"></div>
-                            <div className="flex items-center gap-3 mb-8 relative z-10">
-                                <div className="w-2 h-6 bg-[#48A878] rounded-full"></div>
-                                <h2 className="text-slate-900 font-black text-xs uppercase italic tracking-tighter">AI Analysis Result</h2>
+                            {/* AI STATUS PANEL */}
+                            <div className="bg-[#161d28] border border-[#1e2e40] p-4 rounded-3xl flex items-center justify-between">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-10 h-10 rounded-full bg-[#1D9E75]/10 flex items-center justify-center flex-shrink-0">
+                                        <Activity size={18} className="text-[#1D9E75]" />
+                                    </div>
+                                    <div>
+                                        <p className="text-[10px] font-bold text-[#4a6080] tracking-[0.1em] mb-1">AI ENGINE STATUS</p>
+                                        <div className="flex items-center gap-2">
+                                            <span className="w-2 h-2 rounded-full bg-[#1D9E75] animate-pulse"></span>
+                                            <p className="text-[11px] font-semibold tracking-wide text-white">GEMINI 1.5 FLASH : ACTIVE</p>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className="w-16 h-1 bg-[#1e2e40] rounded-full overflow-hidden">
+                                    <div className="w-1/3 h-full bg-[#1D9E75] block"></div>
+                                </div>
                             </div>
-                            <div className="text-slate-600 text-[12px] leading-[1.8] font-medium whitespace-pre-line text-justify italic relative z-10">
-                                {aiResult?.explanation}
+
+                            {/* QUICK ACTIONS */}
+                            <div className="grid grid-cols-2 gap-4 mt-2">
+                                <motion.button 
+                                    whileTap={{ scale: 0.95 }}
+                                    onClick={() => fileInputRef.current.click()} 
+                                    className="bg-[#161d28] border border-[#1e2e40] p-5 rounded-[25px] flex flex-col items-center justify-center gap-3 hover:bg-[#1e2e40]/50 transition-colors"
+                                >
+                                    <Camera size={24} className="text-[#4a6080]" strokeWidth={1.5} />
+                                    <span className="text-[10px] font-bold uppercase tracking-widest text-[#4a6080]">TAKE PHOTO</span>
+                                </motion.button>
+                                <motion.button 
+                                    whileTap={{ scale: 0.95 }}
+                                    onClick={() => fileInputRef.current.click()} 
+                                    className="bg-[#161d28] border border-[#1e2e40] p-5 rounded-[25px] flex flex-col items-center justify-center gap-3 hover:bg-[#1e2e40]/50 transition-colors"
+                                >
+                                    <FileText size={24} className="text-[#4a6080]" strokeWidth={1.5} />
+                                    <span className="text-[10px] font-bold uppercase tracking-widest text-[#4a6080]">IMPORT PDF</span>
+                                </motion.button>
                             </div>
-                        </div>
-                        <button onClick={handleSave} disabled={loading} className="w-full bg-[#48A878] text-white p-7 rounded-[35px] font-black text-[11px] uppercase tracking-widest shadow-2xl active:scale-95 transition-all">
-                            {loading ? "SAVING TO CLOUD..." : "SAVE REPORT & FINISH"}
-                        </button>
-                    </div>
-                )}
+                        </motion.div>
+                    )}
+
+                    {step === 2 && (
+                        <motion.div 
+                            key="analyzing"
+                            initial={{ scale: 0.9, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            className="space-y-10 w-full"
+                        >
+                            <div className="text-center space-y-3 mt-10">
+                                <div className="w-16 h-16 rounded-full bg-[#1e2e40] flex items-center justify-center mx-auto relative mb-6">
+                                    <div className="absolute inset-0 rounded-full border-2 border-t-[#1D9E75] border-r-transparent border-b-[#1D9E75]/30 border-l-[#1D9E75]/10 animate-spin"></div>
+                                    <Activity size={24} className="text-[#1D9E75] animate-pulse" />
+                                </div>
+                                <h2 className="text-[#1D9E75] font-black text-xs uppercase tracking-[0.3em]">Analyzing Document</h2>
+                                <p className="text-[11px] text-[#4a6080] font-medium tracking-wide">Gemini ENGINE EXTRACTING BIOMARKERS</p>
+                            </div>
+                            <div className="space-y-4 bg-[#161d28] p-6 rounded-[30px] border border-[#1e2e40]">
+                                <div className="flex justify-between items-end px-1 text-[#1D9E75]">
+                                    <p className="text-[10px] font-black uppercase tracking-[0.2em]">Progress</p>
+                                    <p className="text-lg font-black">{progress}%</p>
+                                </div>
+                                <div className="w-full h-1.5 bg-[#1e2e40] rounded-full overflow-hidden">
+                                    <div className="h-full bg-[#1D9E75] transition-all duration-700 ease-out" style={{ width: `${progress}%` }}></div>
+                                </div>
+                            </div>
+                            
+                            <div className="space-y-3">
+                                {detectedValues.length > 0 ? detectedValues.map((item, idx) => (
+                                    <motion.div 
+                                        initial={{ y: 20, opacity: 0 }}
+                                        animate={{ y: 0, opacity: 1 }}
+                                        key={idx} 
+                                        className="bg-[#161d28] border border-[#1e2e40] p-5 rounded-[25px] flex justify-between items-center"
+                                    >
+                                        <span className="text-[11px] font-bold text-[#4a6080] tracking-widest uppercase">{item.label}</span>
+                                        <span className="text-sm font-black text-white">{item.value} <small className="text-[9px] text-[#1D9E75] font-bold ml-1">{item.unit}</small></span>
+                                    </motion.div>
+                                )) : (
+                                    <p className="text-center text-[10px] text-[#4a6080] font-medium tracking-wide">Waiting for parameters...</p>
+                                )}
+                            </div>
+                            
+                            {progress === 100 && (
+                                <motion.button 
+                                    initial={{ scale: 0.9, opacity: 0 }}
+                                    animate={{ scale: 1, opacity: 1 }}
+                                    onClick={() => setStep(3)} 
+                                    className="w-full bg-[#1D9E75] hover:bg-[#1D9E75]/90 text-white p-6 rounded-[30px] font-black text-[11px] uppercase tracking-[0.2em] shadow-[0_0_30px_rgba(29,158,117,0.2)] transition-all mt-8"
+                                >
+                                    Confirm Results
+                                </motion.button>
+                            )}
+                        </motion.div>
+                    )}
+
+                    {step === 3 && (
+                        <motion.div 
+                            key="results"
+                            initial={{ y: 20, opacity: 0 }}
+                            animate={{ y: 0, opacity: 1 }}
+                            className="space-y-8 w-full"
+                        >
+                            <div className="bg-[#161d28] rounded-[40px] p-8 border border-[#1e2e40] relative overflow-hidden">
+                                <div className="absolute top-0 right-0 w-40 h-40 bg-[#1D9E75]/10 rounded-full -mr-16 -mt-16 blur-3xl"></div>
+                                <div className="flex items-center gap-3 mb-8 relative z-10 border-b border-[#1e2e40] pb-6">
+                                    <div className="w-1.5 h-6 bg-[#1D9E75] rounded-full"></div>
+                                    <h2 className="text-white font-black text-[10px] uppercase tracking-[0.2em]">Diagnostic Summary</h2>
+                                </div>
+                                <div className="text-[#a0b0c0] text-[13px] leading-[1.9] font-medium whitespace-pre-line relative z-10">
+                                    {aiResult?.explanation}
+                                </div>
+                            </div>
+                            <button 
+                                onClick={handleSave} 
+                                disabled={loading} 
+                                className="w-full bg-[#1D9E75] disabled:bg-[#1e2e40] disabled:text-[#4a6080] text-white p-6 rounded-[30px] font-black text-[11px] uppercase tracking-[0.2em] shadow-[0_0_20px_rgba(29,158,117,0.2)] transition-all"
+                            >
+                                {loading ? "SAVING RECORD..." : "SAVE TO PROFILE"}
+                            </button>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
             </main>
 
-            <nav className="fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur-md border-t border-slate-50 p-5 flex justify-around items-center z-[100]">
-                <div onClick={() => navigate('/dashboard')} className="flex flex-col items-center opacity-30 cursor-pointer"><span className="text-xl">🏠</span><span className="text-[8px] font-black">HOME</span></div>
-                <div className="flex flex-col items-center text-[#48A878] cursor-pointer"><span className="text-xl">📄</span><span className="text-[8px] font-black">SCAN</span></div>
-                <div onClick={() => navigate('/history')} className="flex flex-col items-center opacity-30 cursor-pointer"><span className="text-xl">📊</span><span className="text-[8px] font-black">REPORTS</span></div>
-                <div onClick={() => navigate('/profile')} className="flex flex-col items-center opacity-30 cursor-pointer"><span className="text-xl">👤</span><span className="text-[8px] font-black">PROFILE</span></div>
+            {/* BOTTOM NAVIGATION (Dark Mode Match) */}
+            <nav className="fixed bottom-0 w-full max-w-md bg-[#0d1117]/95 backdrop-blur-xl border-t border-[#1e2e40] p-6 pb-8 flex justify-around items-center z-[100]">
+                <div onClick={() => navigate('/dashboard')} className="flex flex-col items-center text-[#4a6080] cursor-pointer hover:text-white transition-colors">
+                    <Home size={20} strokeWidth={2} className="mb-2" />
+                    <span className="text-[8px] font-black tracking-widest">HOME</span>
+                </div>
+                <div className="flex flex-col items-center text-[#1D9E75] cursor-pointer">
+                    <Activity size={20} strokeWidth={2} className="mb-2" />
+                    <span className="text-[8px] font-black tracking-widest">SCAN</span>
+                </div>
+                <div onClick={() => navigate('/history')} className="flex flex-col items-center text-[#4a6080] cursor-pointer hover:text-white transition-colors">
+                    <FileText size={20} strokeWidth={2} className="mb-2" />
+                    <span className="text-[8px] font-black tracking-widest">REPORTS</span>
+                </div>
+                <div onClick={() => navigate('/profile')} className="flex flex-col items-center text-[#4a6080] cursor-pointer hover:text-white transition-colors">
+                    <User size={20} strokeWidth={2} className="mb-2" />
+                    <span className="text-[8px] font-black tracking-widest">PROFILE</span>
+                </div>
             </nav>
         </div>
     );

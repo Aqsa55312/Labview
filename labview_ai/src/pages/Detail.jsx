@@ -1,16 +1,13 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { db } from '../firebase';
 import { doc, getDoc } from 'firebase/firestore';
-import jsPDF from 'jspdf';
-import html2canvas from 'html2canvas';
 
 export default function Detail() {
     const { id } = useParams();
     const navigate = useNavigate();
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(true);
-    const reportRef = useRef();
 
     useEffect(() => {
         const fetchDetail = async () => {
@@ -19,187 +16,201 @@ export default function Detail() {
                 const docSnap = await getDoc(docRef);
                 if (docSnap.exists()) {
                     setData(docSnap.data());
-                } else {
-                    navigate('/dashboard');
                 }
             } catch (error) {
-                console.error("Error:", error);
+                console.error("Error fetching detail:", error);
             } finally {
                 setLoading(false);
             }
         };
         fetchDetail();
-    }, [id, navigate]);
+    }, [id]);
 
-    // LOGIKA 1: Menentukan Status Bar & Zona Warna
-    const getStatusInfo = (type, value) => {
-        if (!value || value === 0) return { status: "N/A", color: "bg-slate-300", pos: "0%", range: "No Data" };
+    // LOGIKA PERHITUNGAN SKOR & KLASIFIKASI DATA
+    const getHealthMetrics = () => {
+        const hasNumericData = (data?.glucose > 0 || data?.hemoglobin > 0 || data?.cholesterol > 0 || data?.uric_acid > 0);
+        const rekamMedis = data?.all_data?.["Rekam Medis Pasien"] || [];
+        const isRecap = Array.isArray(rekamMedis) && rekamMedis.length > 0;
 
-        let min = 0, max = 0, status = "NORMAL", color = "bg-[#48A878]", pos = "50%";
-
-        switch (type) {
-            case 'hemoglobin': min = 13.5; max = 17.5; break;
-            case 'glucose': min = 70; max = 110; break;
-            case 'cholesterol': min = 120; max = 200; break;
-            case 'uric_acid': min = 3.4; max = 7.0; break;
-            default: return { status: "NORMAL", color: "bg-[#48A878]", pos: "50%", range: "-" };
+        if (isRecap) {
+            return {
+                type: 'RECAP',
+                score: Math.min(rekamMedis.length * 10, 100), // Skor berdasarkan jumlah data ditemukan
+                label: "DATA PRECISION",
+                color: "#3498DB"
+            };
         }
 
-        if (value < min) { status = "LOW"; color = "bg-orange-500"; pos = "20%"; }
-        else if (value > max) { status = "HIGH"; color = "bg-red-500"; pos = "80%"; }
-        else { status = "NORMAL"; color = "bg-[#48A878]"; pos = "50%"; }
+        if (!hasNumericData) {
+            return { type: 'CLINICAL', score: 100, label: "CLINICAL RECORD", color: "#9B59B6" };
+        }
 
-        return { status, color, pos, range: `${min} - ${max}` };
-    };
-
-    // LOGIKA 2: Kalkulasi Skor Kesehatan Dinamis
-    const calculateDynamicScore = () => {
         let score = 100;
-        let issues = 0;
+        if (data?.hemoglobin > 0 && (data.hemoglobin < 13.5 || data.hemoglobin > 17.5)) score -= 20;
+        if (data?.glucose > 0 && (data.glucose < 70 || data.glucose > 110)) score -= 20;
+        if (data?.cholesterol > 200) score -= 15;
 
-        if (data?.hemoglobin > 0 && (data.hemoglobin < 13.5 || data.hemoglobin > 17.5)) { score -= 20; issues++; }
-        if (data?.glucose > 0 && (data.glucose < 70 || data.glucose > 110)) { score -= 20; issues++; }
-        if (data?.cholesterol > 200) { score -= 15; issues++; }
-        if (data?.uric_acid > 7.0) { score -= 15; issues++; }
-
-        let statusText = "Excellent";
-        let statusColor = "#48A878";
-        if (score < 90 && score >= 70) { statusText = "Stable"; statusColor = "#E67E22"; }
-        else if (score < 70) { statusText = "Needs Attention"; statusColor = "#E74C3C"; }
-
-        return { total: score, status: statusText, color: statusColor, issuesCount: issues };
+        return { type: 'LAB', score: score, label: "HEALTH SCORE", color: "#48A878" };
     };
 
-    const downloadPDF = () => {
-        const input = reportRef.current;
-        html2canvas(input, { scale: 2 }).then((canvas) => {
-            const imgData = canvas.toDataURL('image/png');
-            const pdf = new jsPDF('p', 'mm', 'a4');
-            pdf.addImage(imgData, 'PNG', 0, 0, 210, (canvas.height * 210) / canvas.width);
-            pdf.save(`LabView_Report_${id}.pdf`);
-        });
-    };
+    if (loading) return (
+        <div className="min-h-screen flex items-center justify-center bg-white font-black text-[#48A878] animate-pulse tracking-widest text-[10px]">
+            SYNCHRONIZING AI DATA...
+        </div>
+    );
 
-    if (loading) return <div className="min-h-screen flex items-center justify-center font-black text-[#48A878] tracking-widest animate-pulse">GENERATING REPORT...</div>;
-
-    const health = calculateDynamicScore();
+    const metrics = getHealthMetrics();
+    const patientList = data?.all_data?.["Rekam Medis Pasien"] || [];
 
     return (
-        <div className="min-h-screen bg-[#F8FAFB] font-sans pb-40">
-
-            {/* Header Sticky */}
-            <header className="px-8 py-6 flex items-center justify-between bg-white border-b border-slate-100 sticky top-0 z-50 shadow-sm">
-                <button onClick={() => navigate('/dashboard')} className="w-10 h-10 flex items-center justify-center bg-slate-50 rounded-full hover:bg-slate-100">←</button>
-                <h1 className="text-[11px] font-black uppercase tracking-[0.3em] italic text-[#0A1D37]">Full Diagnostic Report</h1>
-                <button onClick={downloadPDF} className="bg-[#48A878] text-white px-6 py-2 rounded-2xl text-[10px] font-black uppercase tracking-widest">Export PDF</button>
+        <div className="min-h-screen bg-[#F8FAFB] font-sans pb-32">
+            {/* STICKY HEADER */}
+            <header className="px-8 py-6 flex items-center justify-between bg-white border-b border-slate-50 sticky top-0 z-50">
+                <button onClick={() => navigate('/dashboard')} className="w-10 h-10 flex items-center justify-center bg-slate-50 rounded-full hover:bg-slate-100 transition-all text-slate-400 font-bold">←</button>
+                <h1 className="text-[10px] font-black uppercase tracking-[0.3em] italic text-[#0A1D37]">AI Diagnostic Report</h1>
+                <div className="w-10"></div>
             </header>
 
-            <div className="max-w-5xl mx-auto p-6 lg:p-12 space-y-12">
+            <main className="max-w-4xl mx-auto p-6 space-y-8">
 
-                <div ref={reportRef} className="space-y-12">
+                {/* GAUGE SCORE CARD */}
+                <div className="bg-white rounded-[50px] p-10 shadow-sm border border-slate-50 text-center relative overflow-hidden">
+                    <p className="text-[9px] font-black text-slate-300 uppercase tracking-[0.3em] mb-8 italic">System Analytics</p>
 
-                    {/* 1. GAUGE SKOR UTAMA */}
-                    <div className="bg-white rounded-[60px] p-12 shadow-sm border border-slate-50 text-center flex flex-col items-center">
-                        <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest mb-10 italic">Patient Vital Statistics</p>
-                        <div className="relative w-56 h-56 flex items-center justify-center">
-                            <svg className="w-full h-full transform -rotate-90">
-                                <circle cx="112" cy="112" r="95" fill="transparent" stroke="#F8FAFC" strokeWidth="18" />
-                                <circle
-                                    cx="112" cy="112" r="95" fill="transparent"
-                                    stroke={health.color} strokeWidth="18" strokeDasharray="597"
-                                    strokeDashoffset={597 - (597 * health.total) / 100}
-                                    strokeLinecap="round" className="transition-all duration-[2000ms] ease-out"
-                                />
-                            </svg>
-                            <div className="absolute inset-0 flex flex-col items-center justify-center">
-                                <span className="text-6xl font-black text-[#0A1D37] tracking-tighter">{health.total}<small className="text-xl">/100</small></span>
-                                <span className="text-[10px] font-black uppercase mt-2 tracking-widest px-4 py-1 rounded-full border border-slate-100" style={{ color: health.color }}>{health.status}</span>
-                            </div>
-                        </div>
-                        <p className="mt-10 text-xs text-slate-400 font-medium max-w-md leading-relaxed">
-                            Analisis otomatis mendeteksi {health.issuesCount} anomali klinis. Sistem menggunakan algoritma referensi laboratorium standar.
-                        </p>
-                    </div>
-
-                    {/* 2. GRID PARAMETER UTAMA */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                        {['hemoglobin', 'glucose', 'cholesterol', 'uric_acid'].map((type) => {
-                            const info = getStatusInfo(type, data?.[type]);
-                            return (
-                                <div key={type} className="bg-white rounded-[40px] p-8 border border-slate-50 shadow-sm space-y-6">
-                                    <div className="flex justify-between items-start">
-                                        <div>
-                                            <h4 className="font-black text-[#0A1D37] text-sm uppercase italic">{type.replace('_', ' ')}</h4>
-                                            <p className="text-[11px] font-bold text-slate-400 italic mt-1">{data?.[type] || 0} unit | Ref: {info.range}</p>
-                                        </div>
-                                        <span className={`text-[8px] font-black px-4 py-1.5 rounded-xl uppercase tracking-widest text-white shadow-sm ${info.color}`}>{info.status}</span>
-                                    </div>
-                                    <div className="relative h-2.5 w-full bg-slate-50 rounded-full flex overflow-hidden border border-slate-100">
-                                        <div className="h-full w-[30%] bg-orange-50"></div>
-                                        <div className="h-full w-[40%] bg-green-50"></div>
-                                        <div className="h-full w-[30%] bg-red-50"></div>
-                                        {data?.[type] > 0 && (
-                                            <div className="absolute h-4 w-4 bg-white border-[4px] border-[#0A1D37] rounded-full top-1/2 -translate-y-1/2 shadow-xl transition-all duration-1000" style={{ left: info.pos }}></div>
-                                        )}
-                                    </div>
-                                </div>
-                            );
-                        })}
-                    </div>
-
-                    {/* 3. TEMUAN MEDIS LAINNYA (FLEKSIBEL) */}
-                    {data?.all_data && Object.keys(data.all_data).length > 0 && (
-                        <div className="bg-white rounded-[50px] p-10 border border-slate-50 shadow-sm space-y-8 animate-in fade-in slide-in-from-bottom-5 duration-1000">
-                            <div className="flex items-center gap-4">
-                                <div className="w-2.5 h-10 bg-[#3498DB] rounded-full"></div>
-                                <div>
-                                    <h3 className="font-black text-[#0A1D37] text-sm uppercase italic tracking-widest">Other Clinical Findings</h3>
-                                    <p className="text-[10px] text-slate-400 font-bold uppercase mt-1">Detected via AI Deep Scan</p>
-                                </div>
-                            </div>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                {Object.entries(data.all_data).map(([key, value]) => (
-                                    <div key={key} className="group flex justify-between items-center p-6 bg-[#FBFDFF] rounded-[30px] border border-slate-100 hover:border-blue-200 transition-all">
-                                        <div className="flex flex-col">
-                                            <span className="text-[9px] font-black text-slate-300 uppercase tracking-[0.2em] mb-1">{key}</span>
-                                            <span className="text-sm font-black text-[#0A1D37] group-hover:text-blue-600 transition-colors italic uppercase tracking-tighter">{value}</span>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    )}
-
-                    {/* 4. AI INTERPRETATION */}
-                    <div className="bg-white rounded-[60px] p-10 lg:p-14 border border-slate-50 shadow-sm space-y-8">
-                        <div className="flex items-center gap-4">
-                            <div className="w-2.5 h-10 bg-[#48A878] rounded-full"></div>
-                            <h3 className="font-black text-[#0A1D37] text-lg uppercase italic tracking-tighter">AI Deep Clinical Interpretation</h3>
-                        </div>
-                        <div className="bg-[#F8FAFC] p-10 lg:p-14 rounded-[50px] border border-slate-100">
-                            <div className="text-slate-600 text-[14px] leading-[2.2] font-medium italic whitespace-pre-line text-justify italic">
-                                {data?.interpretation || "AI sedang menyusun narasi interpretasi medis..."}
-                            </div>
+                    <div className="relative w-64 h-64 mx-auto flex items-center justify-center animate-in fade-in zoom-in duration-1000">
+                        <svg className="w-full h-full transform -rotate-90">
+                            <circle cx="128" cy="128" r="110" fill="transparent" stroke="#F1F5F9" strokeWidth="20" />
+                            <circle
+                                cx="128" cy="128" r="110" fill="transparent"
+                                stroke={metrics.color} strokeWidth="20" strokeDasharray="691"
+                                strokeDashoffset={691 - (691 * metrics.score) / 100}
+                                strokeLinecap="round" className="transition-all duration-[2000ms] ease-out"
+                            />
+                        </svg>
+                        <div className="absolute inset-0 flex flex-col items-center justify-center">
+                            <span className="text-7xl font-black text-[#0A1D37] tracking-tighter italic">{metrics.score}</span>
+                            <span className="text-[10px] font-black uppercase mt-2 tracking-widest px-4 py-1.5 rounded-full border border-slate-100" style={{ color: metrics.color }}>{metrics.label}</span>
                         </div>
                     </div>
-
                 </div>
 
-                {/* 5. EMERGENCY ACTION */}
-                {health.total < 70 && (
-                    <div className="bg-[#E74C3C] p-8 rounded-[40px] flex flex-col md:flex-row items-center justify-between text-white shadow-2xl shadow-red-200 border-4 border-white animate-bounce-short">
-                        <div className="flex items-center gap-6 mb-6 md:mb-0">
-                            <div className="w-14 h-14 bg-white/20 rounded-3xl flex items-center justify-center text-3xl">⚕️</div>
-                            <div>
-                                <p className="text-[10px] font-black uppercase tracking-[0.3em] opacity-70">Medical Alert System</p>
-                                <p className="text-sm font-black italic">Hasil lab Anda memerlukan perhatian medis segera.</p>
-                            </div>
+                {/* MODUL 1: TABEL REKAP PASIEN (Hanya muncul jika ada data Rekam Medis Pasien) */}
+                {metrics.type === 'RECAP' && (
+                    <div className="bg-white rounded-[40px] p-8 border border-slate-50 shadow-sm overflow-hidden">
+                        <h3 className="font-black text-[#0A1D37] text-sm uppercase italic tracking-widest mb-6 px-2">Patient Summary List</h3>
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-left">
+                                <thead className="bg-[#F8FAFB] rounded-2xl">
+                                    <tr>
+                                        <th className="p-4 text-[9px] font-black text-slate-400 uppercase">Patient & NIK</th>
+                                        <th className="p-4 text-[9px] font-black text-slate-400 uppercase">Primary Diagnosis</th>
+                                        <th className="p-4 text-[9px] font-black text-slate-400 uppercase text-right">Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-50">
+                                    {patientList.map((p, i) => (
+                                        <tr key={i} className="hover:bg-slate-50/50 transition-colors">
+                                            <td className="p-4">
+                                                <p className="text-xs font-bold text-[#0A1D37] uppercase">{typeof p["Nama Pasien"] === 'object' ? JSON.stringify(p["Nama Pasien"]) : (p["Nama Pasien"] || "N/A")}</p>
+                                                <p className="text-[9px] text-slate-400 font-mono mt-1">{typeof p["NIK Pasien"] === 'object' ? JSON.stringify(p["NIK Pasien"]) : (p["NIK Pasien"] || "No NIK recorded")}</p>
+                                            </td>
+                                            <td className="p-4 text-[10px] font-semibold text-slate-500 italic">
+                                                {typeof p["Diagnosa Utama"] === 'object' ? JSON.stringify(p["Diagnosa Utama"]) : p["Diagnosa Utama"]}
+                                            </td>
+                                            <td className="p-4 text-right">
+                                                <span className="text-[8px] font-black px-2 py-1 bg-green-50 text-green-600 rounded-md border border-green-100 uppercase">Verified</span>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
                         </div>
-                        <button className="bg-white text-[#E74C3C] px-8 py-4 rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg">Konsultasi Dokter</button>
                     </div>
                 )}
 
-            </div>
+                {/* MODUL 2: BIOMETRIC CARDS (Hanya muncul jika data LAB) */}
+                {metrics.type === 'LAB' && (
+                    <div className="grid grid-cols-2 gap-4">
+                        {['hemoglobin', 'glucose', 'cholesterol', 'uric_acid'].map((key) => (
+                            <div key={key} className="bg-white p-6 rounded-[30px] border border-slate-50 shadow-sm">
+                                <p className="text-[8px] font-black text-slate-300 uppercase tracking-widest">{key}</p>
+                                <p className="text-2xl font-black text-[#0A1D37] mt-2 italic">{data[key] || 0}</p>
+                            </div>
+                        ))}
+                    </div>
+                )}
+
+                {/* AI INTERPRETATION - BOX GELAP MEWAH */}
+                <div className="bg-[#0A1D37] rounded-[50px] p-10 text-white relative overflow-hidden shadow-2xl">
+                    <div className="relative z-10 space-y-6">
+                        <div className="flex items-center gap-4">
+                            <div className="w-10 h-10 bg-white/10 rounded-2xl flex items-center justify-center text-xl">✨</div>
+                            <h3 className="font-black uppercase tracking-[0.2em] italic text-sm">AI Narrative Insight</h3>
+                        </div>
+                        <div className="text-sm leading-[1.8] font-medium text-white/80 italic text-justify whitespace-pre-line">
+                            {(() => {
+                                const interp = data?.interpretation;
+                                if (!interp) return "AI is processing the medical narrative...";
+                                if (typeof interp === 'string') return interp;
+                                if (typeof interp === 'object') {
+                                    return Object.entries(interp)
+                                        .map(([k, v]) => `${k.toUpperCase()}:\n${typeof v === 'object' ? JSON.stringify(v) : v}`)
+                                        .join('\n\n');
+                                }
+                                return String(interp);
+                            })()}
+                        </div>
+                    </div>
+                    {/* Efek Cahaya */}
+                    <div className="absolute top-0 right-0 w-64 h-64 bg-blue-500/10 blur-[100px] -mr-32 -mt-32"></div>
+                </div>
+
+                {/* TEMUAN MEDIS LAINNYA (FLEXIBLE DATA) */}
+                {data?.all_data && Object.keys(data.all_data).filter(k => k !== "Rekam Medis Pasien" && k !== "Nama Klinik" && k !== "Telepon Klinik").length > 0 && (
+                    <div className="bg-white rounded-[40px] p-8 border border-slate-50 shadow-sm space-y-6">
+                        <div className="flex items-center gap-4">
+                            <div className="w-10 h-10 bg-[#E8F5EE] rounded-2xl flex items-center justify-center text-[#48A878] text-xl">📋</div>
+                            <div>
+                                <h3 className="font-black text-[#0A1D37] text-sm uppercase italic tracking-widest">Other Clinical Findings</h3>
+                                <p className="text-[9px] text-slate-400 font-bold uppercase mt-1">Detected via AI Deep Scan</p>
+                            </div>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {Object.entries(data.all_data)
+                                .filter(([key]) => key !== "Rekam Medis Pasien" && key !== "Nama Klinik" && key !== "Telepon Klinik")
+                                .map(([key, value]) => (
+                                    <div key={key} className="group flex justify-between items-center p-5 bg-[#FBFDFF] rounded-[25px] border border-slate-100 hover:border-green-200 transition-all">
+                                        <div className="flex flex-col">
+                                            <span className="text-[9px] font-black text-slate-300 uppercase tracking-[0.2em] mb-1">{key}</span>
+                                            <span className="text-xs font-black text-[#0A1D37] group-hover:text-[#48A878] transition-colors italic uppercase tracking-tighter break-words pt-1">
+                                                {typeof value === 'object' ? JSON.stringify(value) : String(value)}
+                                            </span>
+                                        </div>
+                                    </div>
+                                ))}
+                        </div>
+                    </div>
+                )}
+
+                {/* KLINIK INFO CARDS */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="bg-white p-8 rounded-[40px] border border-slate-50 shadow-sm flex items-center gap-6">
+                        <div className="w-12 h-12 bg-slate-50 rounded-2xl flex items-center justify-center text-xl">🏥</div>
+                        <div>
+                            <p className="text-[9px] font-black text-slate-300 uppercase tracking-widest">Clinic Identity</p>
+                            <p className="text-xs font-bold text-[#0A1D37] uppercase italic break-all">{typeof data?.all_data?.["Nama Klinik"] === 'object' ? JSON.stringify(data.all_data["Nama Klinik"]) : (data?.all_data?.["Nama Klinik"] || "Unknown Source")}</p>
+                        </div>
+                    </div>
+                    <div className="bg-white p-8 rounded-[40px] border border-slate-50 shadow-sm flex items-center gap-6">
+                        <div className="w-12 h-12 bg-slate-50 rounded-2xl flex items-center justify-center text-xl">📞</div>
+                        <div>
+                            <p className="text-[9px] font-black text-slate-300 uppercase tracking-widest">Contact Info</p>
+                            <p className="text-xs font-bold text-[#0A1D37] italic break-all">{typeof data?.all_data?.["Telepon Klinik"] === 'object' ? JSON.stringify(data.all_data["Telepon Klinik"]) : (data?.all_data?.["Telepon Klinik"] || "No Phone Info")}</p>
+                        </div>
+                    </div>
+                </div>
+
+            </main>
         </div>
     );
 }
