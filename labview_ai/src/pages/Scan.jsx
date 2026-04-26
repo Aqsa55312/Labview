@@ -145,7 +145,7 @@ export default function Scan() {
                     hemoglobin: Number(aiResult.main_metrics?.hemoglobin) || 0,
                     cholesterol: Number(aiResult.main_metrics?.cholesterol) || 0,
                     uric_acid: Number(aiResult.main_metrics?.uric_acid) || 0,
-                    all_data: aiResult.all_data || {}, 
+                    all_data: aiResult.all_data || {},
                     createdAt: serverTimestamp()
                 });
             }
@@ -158,20 +158,20 @@ export default function Scan() {
     };
 
     return (
-        <div style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }} className="min-h-screen bg-[#0d1117] text-white pb-32 flex flex-col items-center">
+        <div style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }} className="min-h-screen bg-[#F8FAFC] dark:bg-[#0d1117] text-[#1E293B] dark:text-[#f0f6ff] transition-colors duration-500 pb-32 flex flex-col items-center">
             {/* HEADER SECTION */}
-            <header className="w-full max-w-md px-6 py-6 flex flex-col sticky top-0 bg-[#0d1117]/80 backdrop-blur-lg z-50 border-b border-[#1e2e40]">
+            <header className="w-full max-w-md px-6 py-6 flex flex-col sticky top-0 bg-[#F8FAFC] dark:bg-[#0d1117]/80 backdrop-blur-lg z-50 border-b border-[#E2E8F0] dark:border-[#1e2e40]">
                 <div className="flex items-center justify-between w-full mb-4">
-                    <button onClick={() => navigate('/dashboard')} className="text-white hover:text-[#1D9E75] transition-colors p-2 -ml-2 rounded-full hover:bg-[#161d28]">
+                    <button onClick={() => navigate('/dashboard')} className="text-[#1E293B] dark:text-[#f0f6ff] hover:text-[#1D9E75] dark:hover:text-[#1D9E75] transition-colors p-2 -ml-2 rounded-full hover:bg-[#FFFFFF] dark:bg-[#161d28]">
                         <ArrowLeft size={20} strokeWidth={2.5} />
                     </button>
                     <div className="w-6"></div>
                 </div>
                 <div>
-                    <h1 className="font-black text-[10px] text-[#4a6080] tracking-[0.4em] uppercase mb-1">
+                    <h1 className="font-black text-[10px] text-slate-500 dark:text-[#4a6080] tracking-[0.4em] uppercase mb-1">
                         Smart Ingestion
                     </h1>
-                    <p className="text-white text-sm font-medium tracking-wide">
+                    <p className="text-[#1E293B] dark:text-[#f0f6ff] text-sm font-medium tracking-wide">
                         Upload medical reports for AI analysis
                     </p>
                 </div>
@@ -180,7 +180,7 @@ export default function Scan() {
             <main className="flex-1 w-full max-w-md px-6 flex flex-col justify-center pb-12">
                 <AnimatePresence mode="wait">
                     {step === 1 && (
-                        <motion.div 
+                        <motion.div
                             key="upload-hub"
                             initial={{ scale: 0.9, opacity: 0 }}
                             animate={{ scale: 1, opacity: 1 }}
@@ -189,22 +189,22 @@ export default function Scan() {
                             className="w-full flex flex-col gap-6"
                         >
                             {/* CENTRAL UPLOAD HUB */}
-                            <motion.div 
+                            <motion.div
                                 whileHover={{ scale: 1.02 }}
                                 whileTap={{ scale: 0.98 }}
                                 onClick={() => fileInputRef.current.click()}
-                                className="bg-[#161d28]/80 backdrop-blur-xl border border-dashed border-[#1e2e40] rounded-[50px] p-8 flex flex-col items-center justify-center cursor-pointer transition-all hover:bg-[#1e2e40]/40 group"
+                                className="bg-[#FFFFFF] dark:bg-[#161d28]/80 backdrop-blur-xl border border-dashed border-[#E2E8F0] dark:border-[#1e2e40] rounded-[50px] p-8 flex flex-col items-center justify-center cursor-pointer transition-all hover:bg-[#1e2e40]/40 group"
                                 style={{ minHeight: '380px' }}
                             >
                                 <div className="w-24 h-24 rounded-full bg-[#1e2e40]/50 flex items-center justify-center mb-8 relative">
                                     <div className="absolute inset-0 rounded-full bg-[#1D9E75] blur-xl opacity-20 group-hover:opacity-40 transition-opacity"></div>
                                     <FilePlus size={40} className="text-[#1D9E75] relative z-10" strokeWidth={1.5} />
                                 </div>
-                                <h3 className="text-xl font-bold tracking-tight mb-2 text-white">Select medical file</h3>
-                                <p className="text-sm font-medium text-[#4a6080] mb-8 text-center max-w-[200px]">
+                                <h3 className="text-xl font-bold tracking-tight mb-2 text-[#1E293B] dark:text-[#f0f6ff]">Select medical file</h3>
+                                <p className="text-sm font-medium text-slate-500 dark:text-[#4a6080] mb-8 text-center max-w-[200px]">
                                     Supports PDF, JPG and PNG files up to 10MB
                                 </p>
-                                
+
                                 <button className="bg-[#1D9E75] hover:bg-[#1D9E75]/90 text-white px-8 py-4 rounded-2xl font-bold text-xs uppercase tracking-[0.2em] shadow-[0_0_20px_rgba(29,158,117,0.3)] transition-all flex items-center gap-2">
                                     <Activity size={16} />
                                     Select File
@@ -213,16 +213,16 @@ export default function Scan() {
                             </motion.div>
 
                             {/* AI STATUS PANEL */}
-                            <div className="bg-[#161d28] border border-[#1e2e40] p-4 rounded-3xl flex items-center justify-between">
+                            <div className="bg-[#FFFFFF] dark:bg-[#161d28] border border-[#E2E8F0] dark:border-[#1e2e40] p-4 rounded-3xl flex items-center justify-between">
                                 <div className="flex items-center gap-3">
                                     <div className="w-10 h-10 rounded-full bg-[#1D9E75]/10 flex items-center justify-center flex-shrink-0">
                                         <Activity size={18} className="text-[#1D9E75]" />
                                     </div>
                                     <div>
-                                        <p className="text-[10px] font-bold text-[#4a6080] tracking-[0.1em] mb-1">AI ENGINE STATUS</p>
+                                        <p className="text-[10px] font-bold text-slate-500 dark:text-[#4a6080] tracking-[0.1em] mb-1">AI ENGINE STATUS</p>
                                         <div className="flex items-center gap-2">
                                             <span className="w-2 h-2 rounded-full bg-[#1D9E75] animate-pulse"></span>
-                                            <p className="text-[11px] font-semibold tracking-wide text-white">GEMINI 1.5 FLASH : ACTIVE</p>
+                                            <p className="text-[11px] font-semibold tracking-wide text-[#1E293B] dark:text-[#f0f6ff]">GEMINI 2.5 FLASH : ACTIVE</p>
                                         </div>
                                     </div>
                                 </div>
@@ -233,28 +233,28 @@ export default function Scan() {
 
                             {/* QUICK ACTIONS */}
                             <div className="grid grid-cols-2 gap-4 mt-2">
-                                <motion.button 
+                                <motion.button
                                     whileTap={{ scale: 0.95 }}
-                                    onClick={() => fileInputRef.current.click()} 
-                                    className="bg-[#161d28] border border-[#1e2e40] p-5 rounded-[25px] flex flex-col items-center justify-center gap-3 hover:bg-[#1e2e40]/50 transition-colors"
+                                    onClick={() => fileInputRef.current.click()}
+                                    className="bg-[#FFFFFF] dark:bg-[#161d28] border border-[#E2E8F0] dark:border-[#1e2e40] p-5 rounded-[25px] flex flex-col items-center justify-center gap-3 hover:bg-[#1e2e40]/50 transition-colors"
                                 >
-                                    <Camera size={24} className="text-[#4a6080]" strokeWidth={1.5} />
-                                    <span className="text-[10px] font-bold uppercase tracking-widest text-[#4a6080]">TAKE PHOTO</span>
+                                    <Camera size={24} className="text-slate-500 dark:text-[#4a6080]" strokeWidth={1.5} />
+                                    <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-[#4a6080]">TAKE PHOTO</span>
                                 </motion.button>
-                                <motion.button 
+                                <motion.button
                                     whileTap={{ scale: 0.95 }}
-                                    onClick={() => fileInputRef.current.click()} 
-                                    className="bg-[#161d28] border border-[#1e2e40] p-5 rounded-[25px] flex flex-col items-center justify-center gap-3 hover:bg-[#1e2e40]/50 transition-colors"
+                                    onClick={() => fileInputRef.current.click()}
+                                    className="bg-[#FFFFFF] dark:bg-[#161d28] border border-[#E2E8F0] dark:border-[#1e2e40] p-5 rounded-[25px] flex flex-col items-center justify-center gap-3 hover:bg-[#1e2e40]/50 transition-colors"
                                 >
-                                    <FileText size={24} className="text-[#4a6080]" strokeWidth={1.5} />
-                                    <span className="text-[10px] font-bold uppercase tracking-widest text-[#4a6080]">IMPORT PDF</span>
+                                    <FileText size={24} className="text-slate-500 dark:text-[#4a6080]" strokeWidth={1.5} />
+                                    <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-[#4a6080]">IMPORT PDF</span>
                                 </motion.button>
                             </div>
                         </motion.div>
                     )}
 
                     {step === 2 && (
-                        <motion.div 
+                        <motion.div
                             key="analyzing"
                             initial={{ scale: 0.9, opacity: 0 }}
                             animate={{ scale: 1, opacity: 1 }}
@@ -266,9 +266,9 @@ export default function Scan() {
                                     <Activity size={24} className="text-[#1D9E75] animate-pulse" />
                                 </div>
                                 <h2 className="text-[#1D9E75] font-black text-xs uppercase tracking-[0.3em]">Analyzing Document</h2>
-                                <p className="text-[11px] text-[#4a6080] font-medium tracking-wide">Gemini ENGINE EXTRACTING BIOMARKERS</p>
+                                <p className="text-[11px] text-slate-500 dark:text-[#4a6080] font-medium tracking-wide">Gemini ENGINE EXTRACTING BIOMARKERS</p>
                             </div>
-                            <div className="space-y-4 bg-[#161d28] p-6 rounded-[30px] border border-[#1e2e40]">
+                            <div className="space-y-4 bg-[#FFFFFF] dark:bg-[#161d28] p-6 rounded-[30px] border border-[#E2E8F0] dark:border-[#1e2e40]">
                                 <div className="flex justify-between items-end px-1 text-[#1D9E75]">
                                     <p className="text-[10px] font-black uppercase tracking-[0.2em]">Progress</p>
                                     <p className="text-lg font-black">{progress}%</p>
@@ -277,28 +277,28 @@ export default function Scan() {
                                     <div className="h-full bg-[#1D9E75] transition-all duration-700 ease-out" style={{ width: `${progress}%` }}></div>
                                 </div>
                             </div>
-                            
+
                             <div className="space-y-3">
                                 {detectedValues.length > 0 ? detectedValues.map((item, idx) => (
-                                    <motion.div 
+                                    <motion.div
                                         initial={{ y: 20, opacity: 0 }}
                                         animate={{ y: 0, opacity: 1 }}
-                                        key={idx} 
-                                        className="bg-[#161d28] border border-[#1e2e40] p-5 rounded-[25px] flex justify-between items-center"
+                                        key={idx}
+                                        className="bg-[#FFFFFF] dark:bg-[#161d28] border border-[#E2E8F0] dark:border-[#1e2e40] p-5 rounded-[25px] flex justify-between items-center"
                                     >
-                                        <span className="text-[11px] font-bold text-[#4a6080] tracking-widest uppercase">{item.label}</span>
-                                        <span className="text-sm font-black text-white">{item.value} <small className="text-[9px] text-[#1D9E75] font-bold ml-1">{item.unit}</small></span>
+                                        <span className="text-[11px] font-bold text-slate-500 dark:text-[#4a6080] tracking-widest uppercase">{item.label}</span>
+                                        <span className="text-sm font-black text-[#1E293B] dark:text-[#f0f6ff]">{item.value} <small className="text-[9px] text-[#1D9E75] font-bold ml-1">{item.unit}</small></span>
                                     </motion.div>
                                 )) : (
-                                    <p className="text-center text-[10px] text-[#4a6080] font-medium tracking-wide">Waiting for parameters...</p>
+                                    <p className="text-center text-[10px] text-slate-500 dark:text-[#4a6080] font-medium tracking-wide">Waiting for parameters...</p>
                                 )}
                             </div>
-                            
+
                             {progress === 100 && (
-                                <motion.button 
+                                <motion.button
                                     initial={{ scale: 0.9, opacity: 0 }}
                                     animate={{ scale: 1, opacity: 1 }}
-                                    onClick={() => setStep(3)} 
+                                    onClick={() => setStep(3)}
                                     className="w-full bg-[#1D9E75] hover:bg-[#1D9E75]/90 text-white p-6 rounded-[30px] font-black text-[11px] uppercase tracking-[0.2em] shadow-[0_0_30px_rgba(29,158,117,0.2)] transition-all mt-8"
                                 >
                                     Confirm Results
@@ -308,26 +308,26 @@ export default function Scan() {
                     )}
 
                     {step === 3 && (
-                        <motion.div 
+                        <motion.div
                             key="results"
                             initial={{ y: 20, opacity: 0 }}
                             animate={{ y: 0, opacity: 1 }}
                             className="space-y-8 w-full"
                         >
-                            <div className="bg-[#161d28] rounded-[40px] p-8 border border-[#1e2e40] relative overflow-hidden">
+                            <div className="bg-[#FFFFFF] dark:bg-[#161d28] rounded-[40px] p-8 border border-[#E2E8F0] dark:border-[#1e2e40] relative overflow-hidden">
                                 <div className="absolute top-0 right-0 w-40 h-40 bg-[#1D9E75]/10 rounded-full -mr-16 -mt-16 blur-3xl"></div>
-                                <div className="flex items-center gap-3 mb-8 relative z-10 border-b border-[#1e2e40] pb-6">
+                                <div className="flex items-center gap-3 mb-8 relative z-10 border-b border-[#E2E8F0] dark:border-[#1e2e40] pb-6">
                                     <div className="w-1.5 h-6 bg-[#1D9E75] rounded-full"></div>
-                                    <h2 className="text-white font-black text-[10px] uppercase tracking-[0.2em]">Diagnostic Summary</h2>
+                                    <h2 className="text-[#1E293B] dark:text-[#f0f6ff] font-black text-[10px] uppercase tracking-[0.2em]">Diagnostic Summary</h2>
                                 </div>
                                 <div className="text-[#a0b0c0] text-[13px] leading-[1.9] font-medium whitespace-pre-line relative z-10">
                                     {aiResult?.explanation}
                                 </div>
                             </div>
-                            <button 
-                                onClick={handleSave} 
-                                disabled={loading} 
-                                className="w-full bg-[#1D9E75] disabled:bg-[#1e2e40] disabled:text-[#4a6080] text-white p-6 rounded-[30px] font-black text-[11px] uppercase tracking-[0.2em] shadow-[0_0_20px_rgba(29,158,117,0.2)] transition-all"
+                            <button
+                                onClick={handleSave}
+                                disabled={loading}
+                                className="w-full bg-[#1D9E75] disabled:bg-[#1e2e40] disabled:text-slate-500 dark:text-[#4a6080] text-white p-6 rounded-[30px] font-black text-[11px] uppercase tracking-[0.2em] shadow-[0_0_20px_rgba(29,158,117,0.2)] transition-all"
                             >
                                 {loading ? "SAVING RECORD..." : "SAVE TO PROFILE"}
                             </button>
@@ -337,8 +337,8 @@ export default function Scan() {
             </main>
 
             {/* BOTTOM NAVIGATION (Dark Mode Match) */}
-            <nav className="fixed bottom-0 w-full max-w-md bg-[#0d1117]/95 backdrop-blur-xl border-t border-[#1e2e40] p-6 pb-8 flex justify-around items-center z-[100]">
-                <div onClick={() => navigate('/dashboard')} className="flex flex-col items-center text-[#4a6080] cursor-pointer hover:text-white transition-colors">
+            <nav className="fixed bottom-0 w-full max-w-md bg-[#F8FAFC] dark:bg-[#0d1117]/95 backdrop-blur-xl border-t border-[#E2E8F0] dark:border-[#1e2e40] p-6 pb-8 flex justify-around items-center z-[100]">
+                <div onClick={() => navigate('/dashboard')} className="flex flex-col items-center text-slate-500 dark:text-[#4a6080] cursor-pointer hover:text-[#1E293B] dark:hover:text-[#f0f6ff] transition-colors">
                     <Home size={20} strokeWidth={2} className="mb-2" />
                     <span className="text-[8px] font-black tracking-widest">HOME</span>
                 </div>
@@ -346,11 +346,11 @@ export default function Scan() {
                     <Activity size={20} strokeWidth={2} className="mb-2" />
                     <span className="text-[8px] font-black tracking-widest">SCAN</span>
                 </div>
-                <div onClick={() => navigate('/history')} className="flex flex-col items-center text-[#4a6080] cursor-pointer hover:text-white transition-colors">
+                <div onClick={() => navigate('/history')} className="flex flex-col items-center text-slate-500 dark:text-[#4a6080] cursor-pointer hover:text-[#1E293B] dark:hover:text-[#f0f6ff] transition-colors">
                     <FileText size={20} strokeWidth={2} className="mb-2" />
                     <span className="text-[8px] font-black tracking-widest">REPORTS</span>
                 </div>
-                <div onClick={() => navigate('/profile')} className="flex flex-col items-center text-[#4a6080] cursor-pointer hover:text-white transition-colors">
+                <div onClick={() => navigate('/profile')} className="flex flex-col items-center text-slate-500 dark:text-[#4a6080] cursor-pointer hover:text-[#1E293B] dark:hover:text-[#f0f6ff] transition-colors">
                     <User size={20} strokeWidth={2} className="mb-2" />
                     <span className="text-[8px] font-black tracking-widest">PROFILE</span>
                 </div>

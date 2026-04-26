@@ -1,16 +1,12 @@
-// tailwind.config.js
+/** @type {import('tailwindcss').Config} */
 export default {
+    darkMode: 'class', // <--- INI WAJIB ADA
     content: [
         "./index.html",
-        "./src/**/*.{js,ts,jsx,jsx}",
+        "./src/**/*.{js,ts,jsx,tsx}",
     ],
     theme: {
-        extend: {
-            // TAMBAHKAN INI
-            fontFamily: {
-                sans: ['Inter', 'sans-serif'],
-            },
-        },
+        extend: {},
     },
     plugins: [],
 }

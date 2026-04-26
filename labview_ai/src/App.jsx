@@ -8,6 +8,7 @@ import History from './pages/History';
 import Detail from './pages/Detail';
 import Profile from './pages/Profile';
 import Trends from './pages/Trends';
+import './index.css';
 
 function App() {
   return (
