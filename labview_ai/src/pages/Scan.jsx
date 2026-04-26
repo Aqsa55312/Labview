@@ -8,9 +8,10 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowLeft, FilePlus, Camera, Activity, Home, FileText, User } from 'lucide-react';
 
 // API Key Gemini
-const genAI = new GoogleGenerativeAI("AIzaSyBGQKRDz-5TKbeOTdOAtPssphrTHXb0LkY");
+const genAI = new GoogleGenerativeAI("AIzaSyBYFGnX4HVxHcR4yvQ00WO9xdiK2SDA6oM");
 
 export default function Scan() {
+
     const [loading, setLoading] = useState(false);
     const [progress, setProgress] = useState(0);
     const [detectedValues, setDetectedValues] = useState([]);

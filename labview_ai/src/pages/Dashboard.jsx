@@ -2,33 +2,51 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-    LayoutGrid,
-    ScanLine,
-    History as HistoryIcon,
-    User,
-    Bell,
-    Activity,
-    Droplets,
-    Zap,
-    Sun,
-    Moon
+    LayoutGrid, ScanLine, History as HistoryIcon, User,
+    Bell, Activity, Droplets, Zap, Sun, Moon,
+    Pill, Clock, Plus, CheckCircle2, X, HelpCircle
 } from 'lucide-react';
 import { auth, db } from '../firebase';
-import { collection, query, where, orderBy, onSnapshot } from 'firebase/firestore';
+import { collection, query, where, orderBy, onSnapshot, addDoc, serverTimestamp, doc, updateDoc } from 'firebase/firestore';
 
 export default function Dashboard() {
     const navigate = useNavigate();
+    const user = auth.currentUser;
+
+    // --- STATES ---
     const [latestResult, setLatestResult] = useState(null);
     const [totalScans, setTotalScans] = useState(0);
     const [loading, setLoading] = useState(true);
     const [recentAlerts, setRecentAlerts] = useState([]);
     const [showNotif, setShowNotif] = useState(false);
-    const user = auth.currentUser;
 
-    // --- LOGIKA DUAL MODE (Sesuai Saran Cara 1) ---
-    const [isDark, setIsDark] = useState(() => {
-        return localStorage.getItem('theme') === 'light' ? false : true;
-    });
+    // Onboarding & Persistence States
+    const [showTutorial, setShowTutorial] = useState(false);
+    const [dismissedAlerts, setDismissedAlerts] = useState(() => JSON.parse(localStorage.getItem('dismissed_alerts') || '[]'));
+    const [isDark, setIsDark] = useState(() => localStorage.getItem('theme') === 'light' ? false : true);
+
+    // Medication States
+    const [reminders, setReminders] = useState([]);
+    const [isModalOpen, setIsModalOpen] = useState(false);
+    const [medName, setMedName] = useState('');
+    const [medTime, setMedTime] = useState('');
+    const [currentTime, setCurrentTime] = useState(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }));
+
+    // --- LOGIKA ONBOARDING ---
+    useEffect(() => {
+        const hasSeen = localStorage.getItem('hasSeenTutorial');
+        if (!hasSeen) setShowTutorial(true);
+    }, []);
+
+    const finishTutorial = () => {
+        localStorage.setItem('hasSeenTutorial', 'true');
+        setShowTutorial(false);
+    };
+
+    // --- PERSISTENCE EFFECT ---
+    useEffect(() => {
+        localStorage.setItem('dismissed_alerts', JSON.stringify(dismissedAlerts));
+    }, [dismissedAlerts]);
 
     useEffect(() => {
         if (isDark) {
@@ -39,105 +57,98 @@ export default function Dashboard() {
             localStorage.setItem('theme', 'light');
         }
     }, [isDark]);
-    // ----------------------------------------------
+
+    // --- LOGIKA SKOR DINAMIS ---
+    const calculateScore = () => {
+        if (!latestResult) return 0;
+        let score = 100;
+        if (latestResult.glucose > 140) score -= 30;
+        if (latestResult.hemoglobin > 0 && latestResult.hemoglobin < 12) score -= 30;
+        return Math.max(score, 10);
+    };
+
+    const healthScore = calculateScore();
+    const strokeOffset = 534 - (534 * healthScore) / 100;
+
+    // --- CLOCK & DATA FETCHING ---
+    useEffect(() => {
+        const timer = setInterval(() => {
+            setCurrentTime(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }));
+        }, 1000);
+        return () => clearInterval(timer);
+    }, []);
 
     useEffect(() => {
         if (!user) return;
 
-        const q = query(
-            collection(db, "lab_results"),
-            where("userId", "==", user.uid),
-            orderBy("createdAt", "desc")
-        );
-
-        const unsubscribe = onSnapshot(q, (snapshot) => {
+        const qLab = query(collection(db, "lab_results"), where("userId", "==", user.uid), orderBy("createdAt", "desc"));
+        const unsubLab = onSnapshot(qLab, (snapshot) => {
             setTotalScans(snapshot.size);
             if (!snapshot.empty) {
-                setLatestResult(snapshot.docs[0].data());
-                
-                // Cek data yang butuh Alert (mirip logika History)
-                const allAlerts = snapshot.docs.map(doc => ({id: doc.id, ...doc.data()}))
-                   .filter(data => data.glucose > 110 || (data.hemoglobin > 0 && (data.hemoglobin < 13 || data.hemoglobin > 18)));
-                
-                setRecentAlerts(allAlerts.slice(0, 3)); // Ambil max 3 terbaru
-            } else {
-                setRecentAlerts([]);
+                const latest = snapshot.docs[0].data();
+                setLatestResult(latest);
+                const allAlerts = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }))
+                    .filter(data => (data.glucose > 110 || (data.hemoglobin > 0 && (data.hemoglobin < 13 || data.hemoglobin > 18))) && !dismissedAlerts.includes(doc.id));
+                setRecentAlerts(allAlerts.slice(0, 1));
             }
             setLoading(false);
         });
 
-        return () => unsubscribe();
-    }, [user]);
+        const qMed = query(collection(db, "reminders"), where("userId", "==", user.uid), orderBy("time", "asc"));
+        const unsubMed = onSnapshot(qMed, (snapshot) => {
+            setReminders(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+        });
+
+        return () => { unsubLab(); unsubMed(); };
+    }, [user, dismissedAlerts]);
+
+    const handleAddMedication = async (e) => {
+        e.preventDefault();
+        if (!medName || !medTime) return;
+        try {
+            await addDoc(collection(db, "reminders"), {
+                userId: user.uid, medicineName: medName, time: medTime, isTaken: false, createdAt: serverTimestamp()
+            });
+            setMedName(''); setMedTime(''); setIsModalOpen(false);
+        } catch (error) { console.error(error); }
+    };
 
     return (
-        <div className="min-h-screen bg-[#F8FAFC] dark:bg-[#0d1117] text-[#1E293B] dark:text-[#f0f6ff] font-['Plus_Jakarta_Sans'] pb-40 overflow-x-hidden transition-colors duration-500">
-            {/* BACKGROUND GLOW (Hanya Aktif di Dark Mode) */}
+        <div className="min-h-screen bg-[#F8FAFC] dark:bg-[#0d1117] text-[#1E293B] dark:text-[#f0f6ff] font-['Plus_Jakarta_Sans'] pb-40 transition-colors duration-500">
             <div className="fixed top-[-10%] right-[-10%] w-80 h-80 bg-[#1D9E75]/10 rounded-full blur-[120px] -z-10 hidden dark:block"></div>
 
             {/* TOP BAR */}
-            <header className="px-8 pt-16 pb-6 flex justify-between items-center transition-all">
+            <header className="px-8 pt-16 pb-6 flex justify-between items-center z-[60] relative">
                 <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }}>
-                    <p className="text-[10px] font-black text-slate-500 dark:text-[#4a6080] tracking-[0.3em] uppercase">
-                        {isDark ? 'Antigravity Mode' : 'Clinical Mode'}
-                    </p>
-                    <h1 className="text-xl font-black italic tracking-tighter uppercase text-[#1D9E75]">
-                        {user?.displayName?.split(' ')[0] || "User"}
-                    </h1>
+                    <p className="text-[10px] font-black text-slate-500 dark:text-[#4a6080] tracking-[0.3em] uppercase italic">System Active</p>
+                    <h1 className="text-xl font-black italic tracking-tighter uppercase text-[#1D9E75]">{user?.displayName?.split(' ')[0] || "Aqsa"}</h1>
                 </motion.div>
 
                 <div className="flex gap-3">
-                    {/* TOMBOL TOGGLE THEME (Sesuai Permintaan) */}
-                    <motion.button
-                        whileTap={{ scale: 0.9 }}
-                        onClick={() => setIsDark(!isDark)}
-                        className="p-3 bg-white dark:bg-[#161d28] border border-slate-200 dark:border-[#1e2e40] rounded-2xl shadow-sm transition-all text-[#1E293B] dark:text-[#f0f6ff]"
-                    >
+                    <button onClick={() => setShowTutorial(true)} className="p-3 bg-white dark:bg-[#161d28] border border-slate-200 dark:border-[#1e2e40] rounded-2xl text-[#1D9E75] shadow-sm"><HelpCircle size={20} /></button>
+                    <button onClick={() => setIsDark(!isDark)} className="p-3 bg-white dark:bg-[#161d28] border border-slate-200 dark:border-[#1e2e40] rounded-2xl shadow-sm">
                         {isDark ? <Sun size={20} className="text-amber-400" /> : <Moon size={20} className="text-slate-600" />}
-                    </motion.button>
-
+                    </button>
                     <div className="relative">
-                        <motion.button
-                            initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }}
-                            onClick={() => setShowNotif(!showNotif)}
-                            className="p-3 bg-white dark:bg-[#161d28] border border-slate-200 dark:border-[#1e2e40] rounded-2xl text-slate-500 dark:text-[#4a6080] relative shadow-sm transition-all hover:bg-slate-50 dark:hover:bg-slate-800/50"
-                        >
+                        <button onClick={() => setShowNotif(!showNotif)} className="p-3 bg-white dark:bg-[#161d28] border border-slate-200 dark:border-[#1e2e40] rounded-2xl text-slate-500 shadow-sm relative">
                             <Bell size={20} />
-                            {recentAlerts.length > 0 && (
-                                <div className="absolute top-2.5 right-2.5 w-2 h-2 bg-red-500 rounded-full border-2 border-white dark:border-[#161d28] transition-colors"></div>
-                            )}
-                        </motion.button>
-
-                        {/* POPUP NOTIFIKASI DROPDOWN */}
+                            {recentAlerts.length > 0 && <div className="absolute top-2.5 right-2.5 w-2 h-2 bg-red-500 rounded-full border-2 border-white dark:border-[#161d28]"></div>}
+                        </button>
                         <AnimatePresence>
                             {showNotif && (
-                                <motion.div 
-                                    initial={{ opacity: 0, y: 10, scale: 0.95 }}
-                                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                                    exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                                    className="absolute top-full right-0 mt-3 w-72 bg-white dark:bg-[#161d28] border border-slate-200 dark:border-[#1e2e40] rounded-[25px] shadow-2xl overflow-hidden z-50 p-4 transition-colors"
-                                >
-                                    <div className="flex justify-between items-center mb-3">
-                                        <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 dark:text-[#4a6080]">Notifications</h3>
-                                        <span className="text-[9px] font-bold bg-red-50 dark:bg-red-500/10 text-red-600 px-2 py-0.5 rounded-full">{recentAlerts.length} Alerts</span>
-                                    </div>
-
-                                    <div className="space-y-3">
-                                        {recentAlerts.length > 0 ? (
-                                            recentAlerts.map(alert => (
-                                                <div key={alert.id} onClick={() => navigate(`/detail/${alert.id}`)} className="p-3 bg-slate-50 dark:bg-[#0d1117] rounded-2xl border border-slate-100 dark:border-white/5 cursor-pointer hover:border-red-500/30 transition-all">
-                                                    <p className="text-[9px] font-black text-red-500 uppercase tracking-widest mb-1">Attention Required</p>
-                                                    <p className="text-xs font-medium text-[#1E293B] dark:text-[#f0f6ff] leading-snug line-clamp-2">
-                                                        {alert.interpretation || "Abnormal biomarker levels detected. Please review."}
-                                                    </p>
+                                <motion.div initial={{ opacity: 0, y: 10, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 10, scale: 0.95 }} className="absolute top-full right-0 mt-3 w-72 bg-white dark:bg-[#161d28] border border-slate-200 dark:border-[#1e2e40] rounded-[25px] shadow-2xl z-50 p-4">
+                                    <h3 className="text-[10px] font-black uppercase tracking-widest text-[#4a6080] mb-3 px-2 italic">Alerts</h3>
+                                    <div className="space-y-2">
+                                        {recentAlerts.map(alert => (
+                                            <div key={alert.id} className="relative group">
+                                                <div onClick={() => navigate(`/detail/${alert.id}`)} className="p-3 bg-slate-50 dark:bg-[#0d1117] rounded-2xl border border-white/5 cursor-pointer pr-8">
+                                                    <p className="text-[8px] font-black text-red-500 uppercase">Attention Required</p>
+                                                    <p className="text-[10px] leading-tight mt-1 italic line-clamp-2">"{alert.interpretation}"</p>
                                                 </div>
-                                            ))
-                                        ) : (
-                                            <div className="text-center py-6 text-slate-500 dark:text-[#4a6080]">
-                                                <Activity size={24} className="mx-auto mb-2 opacity-30" />
-                                                <p className="text-[9px] font-black uppercase tracking-widest">All Clear</p>
-                                                <p className="text-[10px] mt-1">Your recent vitals are optimal.</p>
+                                                <button onClick={(e) => { e.stopPropagation(); setDismissedAlerts([...dismissedAlerts, alert.id]); }} className="absolute top-2 right-2 p-1 text-slate-400 hover:text-red-500"><X size={14} /></button>
                                             </div>
-                                        )}
+                                        ))}
+                                        {recentAlerts.length === 0 && <p className="text-[9px] text-center py-4 opacity-50 uppercase font-bold">No Alerts</p>}
                                     </div>
                                 </motion.div>
                             )}
@@ -146,109 +157,137 @@ export default function Dashboard() {
                 </div>
             </header>
 
-            <main className="px-6 space-y-6">
-                {/* HERO SCORE CARD */}
-                <motion.div
-                    initial={{ opacity: 0, scale: 0.9 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    className="bg-white dark:bg-[#161d28] rounded-[50px] p-10 border border-slate-100 dark:border-[#1e2e40] text-center shadow-xl dark:shadow-2xl relative overflow-hidden transition-all duration-500"
-                >
-                    <p className="text-[9px] font-black text-slate-500 dark:text-[#4a6080] tracking-[0.4em] uppercase mb-8">System Health Score</p>
-
+            <main className="px-6 space-y-8">
+                {/* HERO GAUGE */}
+                <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="bg-white dark:bg-[#161d28] rounded-[50px] p-10 border border-slate-100 dark:border-[#1e2e40] text-center shadow-xl relative overflow-hidden transition-all duration-500">
+                    <p className="text-[9px] font-black text-slate-500 dark:text-[#4a6080] tracking-[0.4em] uppercase mb-8">System Health Index</p>
                     <div className="relative w-48 h-48 mx-auto flex items-center justify-center">
                         <svg className="w-full h-full transform -rotate-90">
-                            <circle cx="96" cy="96" r="85" fill="transparent" stroke="currentColor" strokeWidth="12" className="text-slate-100 dark:text-[#0d1117] transition-colors" />
-                            <motion.circle
-                                cx="96" cy="96" r="85" fill="transparent"
-                                stroke="#1D9E75" strokeWidth="12"
-                                strokeDasharray="534"
-                                initial={{ strokeDashoffset: 534 }}
-                                animate={{ strokeDashoffset: 534 - (534 * 60) / 100 }}
-                                strokeLinecap="round"
-                                className="transition-all duration-1000 ease-out"
-                            />
+                            <circle cx="96" cy="96" r="85" fill="transparent" stroke="currentColor" strokeWidth="12" className="text-slate-100 dark:text-[#0d1117]" />
+                            <motion.circle cx="96" cy="96" r="85" fill="transparent" stroke="#1D9E75" strokeWidth="12" strokeDasharray="534" initial={{ strokeDashoffset: 534 }} animate={{ strokeDashoffset: strokeOffset }} strokeLinecap="round" transition={{ duration: 1.5 }} />
                         </svg>
                         <div className="absolute flex flex-col items-center">
-                            <span className="text-6xl font-black italic tracking-tighter text-[#1E293B] dark:text-[#f0f6ff]">60</span>
-                            <span className="text-[10px] font-black text-[#1D9E75] uppercase tracking-widest mt-1">Optimal</span>
+                            <span className="text-6xl font-black italic tracking-tighter">{healthScore}</span>
+                            <span className={`text-[10px] font-black uppercase mt-1 ${healthScore === 0 ? 'text-slate-400' : 'text-[#1D9E75]'}`}>{healthScore === 0 ? "No Data" : "Optimal"}</span>
                         </div>
                     </div>
-
-                    <div className="mt-10 bg-slate-50 dark:bg-[#0d1117]/50 rounded-[25px] p-4 flex items-center justify-between border border-slate-100 dark:border-white/5 transition-all">
+                    <div className="mt-8 bg-slate-50 dark:bg-[#0d1117]/50 rounded-[25px] p-4 flex items-center justify-between border border-slate-100 dark:border-white/5">
                         <div className="flex items-center gap-3">
-                            <div className="p-2 bg-[#1D9E75]/10 rounded-xl text-[#1D9E75]">
-                                <Zap size={16} />
-                            </div>
-                            <div className="text-left">
-                                <p className="text-[8px] font-black text-slate-500 dark:text-[#4a6080] uppercase tracking-widest leading-none">Latest Intel</p>
-                                <p className="text-[10px] font-bold text-[#1E293B] dark:text-white uppercase tracking-tighter">Processed {totalScans} file(s)</p>
+                            <div className="p-2 bg-[#1D9E75]/10 rounded-xl text-[#1D9E75]"><Zap size={16} /></div>
+                            <div className="text-left leading-none">
+                                <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Diagnostic Link</p>
+                                <p className="text-[10px] font-bold">Processed {totalScans} file(s)</p>
                             </div>
                         </div>
-                        <button onClick={() => navigate('/scan')} className="px-4 py-2 bg-[#1D9E75]/10 text-[#1D9E75] rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-[#1D9E75]/20 transition-all">Analyze</button>
+                        <button onClick={() => setIsModalOpen(true)} className="px-4 py-2 bg-[#1D9E75] text-white rounded-xl text-[9px] font-black uppercase tracking-widest shadow-lg">+ Add Med</button>
                     </div>
                 </motion.div>
 
-                {/* DYNAMIC GRID */}
+                {/* STATS GRID */}
                 <div className="grid grid-cols-2 gap-4">
-                    <GridItem
-                        icon={<HistoryIcon size={20} />}
-                        label="Scans Total"
-                        value={loading ? '-' : totalScans}
-                        delay={0.1}
-                    />
-                    <GridItem
-                        icon={<Droplets size={20} />}
-                        label="Blood Sugar"
-                        value={loading ? '-' : (latestResult?.glucose || "--")}
-                        color="text-blue-500"
-                        delay={0.2}
-                    />
+                    <GridItem icon={<HistoryIcon size={20} />} label="Scans Total" value={loading ? '-' : totalScans} />
+                    <GridItem icon={<Droplets size={20} />} label="Blood Sugar" value={loading ? '-' : (latestResult?.glucose || "--")} color="text-blue-500" />
                 </div>
+
+                {/* MEDICAL SCHEDULE */}
+                <section className="space-y-4">
+                    <div className="flex items-center gap-2 ml-2">
+                        <Pill size={14} className="text-[#1D9E75]" />
+                        <h3 className="text-[10px] font-black text-slate-500 dark:text-[#4a6080] tracking-[0.3em] uppercase italic">Medical Schedule</h3>
+                    </div>
+                    <div className="space-y-4">
+                        {reminders.map((item) => {
+                            const isTime = currentTime === item.time && !item.isTaken;
+                            return (
+                                <motion.div key={item.id} layout initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0, y: isTime ? [0, -4, 0] : 0 }} transition={{ y: { repeat: Infinity, duration: 2 } }} className={`p-6 rounded-[40px] border flex justify-between items-center transition-all ${isTime ? 'bg-[#1D9E75] border-transparent shadow-[0_15px_30px_rgba(29,158,117,0.3)]' : 'bg-white dark:bg-[#161d28] border-slate-100 dark:border-[#1e2e40]'} ${item.isTaken ? 'opacity-40 grayscale' : ''}`}>
+                                    <div className="flex items-center gap-4">
+                                        <div className={`p-4 rounded-[22px] ${isTime ? 'bg-white/20 text-white' : 'bg-slate-50 dark:bg-[#0d1117] text-[#1D9E75]'}`}><Pill size={24} /></div>
+                                        <div>
+                                            <h4 className={`text-sm font-black italic ${isTime ? 'text-white' : ''}`}>{item.medicineName}</h4>
+                                            <p className={`text-[9px] font-bold flex items-center gap-1 ${isTime ? 'text-white/70' : 'text-slate-400'}`}><Clock size={12} /> {item.time}</p>
+                                        </div>
+                                    </div>
+                                    <button onClick={() => updateDoc(doc(db, "reminders", item.id), { isTaken: !item.isTaken })} className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all ${item.isTaken ? 'bg-[#1D9E75] text-white shadow-lg' : 'bg-slate-100 dark:bg-[#0d1117] text-slate-300'}`}><CheckCircle2 size={24} /></button>
+                                </motion.div>
+                            );
+                        })}
+                    </div>
+                </section>
             </main>
+
+            {/* MODAL TUTORIAL (LANSIA FRIENDLY) */}
+            <AnimatePresence>
+                {showTutorial && (
+                    <div className="fixed inset-0 z-[200] flex items-center justify-center px-6">
+                        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-[#0d1117]/95 backdrop-blur-xl" onClick={finishTutorial} />
+                        <motion.div initial={{ scale: 0.9, y: 50 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 50 }} className="relative w-full max-w-sm bg-white dark:bg-[#161d28] rounded-[50px] p-10 border border-[#1D9E75]/30 shadow-2xl">
+                            <div className="text-center space-y-6">
+                                <div className="w-20 h-20 bg-[#1D9E75]/10 rounded-full flex items-center justify-center mx-auto mb-4">
+                                    <ScanLine size={40} className="text-[#1D9E75] animate-pulse" />
+                                </div>
+                                <h2 className="text-xl font-black italic uppercase tracking-tighter text-[#1D9E75]">Panduan Aplikasi</h2>
+                                <div className="space-y-6 text-left">
+                                    <TutorialStep num="1" title="Foto Laporan" desc="Tekan tombol kotak di bawah untuk memotret kertas hasil lab Anda." />
+                                    <TutorialStep num="2" title="Pantau Skor" desc="Lihat angka kesehatan di tengah. Semakin tinggi semakin baik." />
+                                    <TutorialStep num="3" title="Ingat Obat" desc="Aplikasi menyala hijau jika sudah waktunya minum obat." />
+                                </div>
+                                <button onClick={finishTutorial} className="w-full py-6 bg-[#1D9E75] text-white rounded-[30px] font-black uppercase tracking-widest shadow-xl mt-6">Dimengerti</button>
+                            </div>
+                        </motion.div>
+                    </div>
+                )}
+            </AnimatePresence>
 
             {/* BOTTOM NAV */}
             <div className="fixed bottom-0 left-0 right-0 px-6 pb-8 z-50 pointer-events-none">
-                <nav className="max-w-md mx-auto bg-white/90 dark:bg-[#161d28]/90 backdrop-blur-xl border border-slate-200 dark:border-[#1e2e40] rounded-[35px] h-[85px] flex justify-between items-center px-6 shadow-2xl relative pointer-events-auto transition-all duration-500">
-                    <div className="flex flex-1 justify-around items-center">
-                        <NavIcon icon={<LayoutGrid size={22} />} label="Home" active />
-                        <NavIcon icon={<HistoryIcon size={22} />} label="History" onClick={() => navigate('/history')} />
-                    </div>
-
+                <nav className="max-w-md mx-auto bg-white/90 dark:bg-[#161d28]/90 backdrop-blur-xl border border-slate-200 dark:border-[#1e2e40] rounded-[35px] h-[85px] flex justify-between items-center px-6 shadow-2xl relative pointer-events-auto">
+                    <NavIcon icon={<LayoutGrid size={22} />} active label="Home" />
+                    <NavIcon icon={<HistoryIcon size={22} />} onClick={() => navigate('/history')} label="Riwayat" />
                     <div className="relative -mt-16 group">
-                        <div className="absolute inset-0 bg-[#1D9E75]/30 rounded-[30px] blur-xl group-hover:blur-2xl transition-all"></div>
-                        <button
-                            onClick={() => navigate('/scan')}
-                            className="relative w-20 h-20 bg-[#1D9E75] rounded-[30px] flex items-center justify-center text-white shadow-[0_15px_30px_rgba(29,158,117,0.3)] border-[6px] border-[#F8FAFC] dark:border-[#0d1117] active:scale-90 transition-all duration-500"
-                        >
-                            <ScanLine size={30} strokeWidth={2.5} />
-                        </button>
+                        <button onClick={() => navigate('/scan')} className="relative w-20 h-20 bg-[#1D9E75] rounded-[30px] flex items-center justify-center text-white shadow-2xl border-[6px] border-[#F8FAFC] dark:border-[#0d1117] active:scale-90 transition-all"><ScanLine size={30} /></button>
                     </div>
-
-                    <div className="flex flex-1 justify-around items-center">
-                        <NavIcon icon={<ActivityIcon />} label="Trends" onClick={() => navigate('/trends')} />
-                        <NavIcon icon={<User size={22} />} label="Profile" onClick={() => navigate('/profile')} />
-                    </div>
+                    <NavIcon icon={<ActivityIcon />} onClick={() => navigate('/trends')} label="Tren" />
+                    <NavIcon icon={<User size={22} />} onClick={() => navigate('/profile')} label="Profil" />
                 </nav>
+            </div>
+
+            {/* MODAL TAMBAH OBAT */}
+            {isModalOpen && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center px-6">
+                    <div className="absolute inset-0 bg-[#0d1117]/80 backdrop-blur-md" onClick={() => setIsModalOpen(false)} />
+                    <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} className="relative w-full max-w-sm bg-white dark:bg-[#161d28] rounded-[50px] p-10 border border-white/10 shadow-2xl">
+                        <h2 className="text-center text-[10px] font-black uppercase tracking-widest text-[#1D9E75] mb-8 italic">Tambah Obat</h2>
+                        <form onSubmit={handleAddMedication} className="space-y-6">
+                            <input type="text" placeholder="Nama Obat" value={medName} onChange={(e) => setMedName(e.target.value)} className="w-full bg-slate-50 dark:bg-[#0d1117] border border-slate-100 dark:border-[#1e2e40] rounded-[25px] py-5 px-8 text-xs dark:text-white" />
+                            <input type="time" value={medTime} onChange={(e) => setMedTime(e.target.value)} className="w-full bg-slate-50 dark:bg-[#0d1117] border border-slate-100 dark:border-[#1e2e40] rounded-[25px] py-5 px-8 text-xs dark:text-white" />
+                            <button type="submit" className="w-full py-6 bg-[#1D9E75] text-white rounded-[30px] font-black uppercase tracking-widest shadow-xl">Simpan</button>
+                        </form>
+                    </motion.div>
+                </div>
+            )}
+        </div>
+    );
+}
+
+function TutorialStep({ num, title, desc }) {
+    return (
+        <div className="flex gap-4">
+            <div className="w-8 h-8 rounded-full bg-[#1D9E75] text-white flex items-center justify-center font-black flex-shrink-0 text-[10px]">{num}</div>
+            <div>
+                <h4 className="text-[10px] font-black uppercase tracking-widest dark:text-white">{title}</h4>
+                <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400 leading-relaxed mt-1 italic">{desc}</p>
             </div>
         </div>
     );
 }
 
-// Sub-komponen Grid Item agar kode lebih bersih
-function GridItem({ icon, label, value, color = "text-[#1D9E75]", delay }) {
+function GridItem({ icon, label, value, color = "text-[#1D9E75]" }) {
     return (
-        <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay }}
-            className="bg-white dark:bg-[#161d28] p-8 rounded-[40px] border border-slate-100 dark:border-[#1e2e40] flex flex-col items-center text-center shadow-sm dark:shadow-none transition-all duration-500"
-        >
-            <div className={`w-12 h-12 bg-slate-50 dark:bg-[#1D9E75]/5 rounded-2xl flex items-center justify-center ${color} mb-4`}>
-                {icon}
-            </div>
+        <div className="bg-white dark:bg-[#161d28] p-8 rounded-[40px] border border-slate-100 dark:border-[#1e2e40] flex flex-col items-center text-center shadow-sm">
+            <div className={`w-12 h-12 bg-slate-50 dark:bg-[#0d1117] rounded-2xl flex items-center justify-center ${color} mb-4`}>{icon}</div>
             <p className="text-[9px] font-black text-slate-500 dark:text-[#4a6080] uppercase tracking-[0.3em] mb-1">{label}</p>
-            <p className="text-3xl font-black italic text-[#1E293B] dark:text-white tracking-tighter transition-colors">{value}</p>
-        </motion.div>
+            <p className="text-3xl font-black italic text-[#1E293B] dark:text-white tracking-tighter">{value}</p>
+        </div>
     );
 }
 
@@ -256,19 +295,11 @@ function NavIcon({ icon, active, onClick, label }) {
     return (
         <button onClick={onClick} className={`flex flex-col items-center gap-1 transition-all ${active ? 'text-[#1D9E75]' : 'text-slate-400 dark:text-[#4a6080]'}`}>
             {icon}
-            <span className={`text-[8px] font-black uppercase tracking-[0.2em] ${active ? 'opacity-100' : 'opacity-50'}`}>
-                {label}
-            </span>
-            {active && <div className="w-1 h-1 bg-[#1D9E75] rounded-full mt-0.5"></div>}
+            <span className="text-[8px] font-black uppercase tracking-widest opacity-60">{label}</span>
         </button>
     );
 }
 
 function ActivityIcon() {
-    return (
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-            <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"></polyline>
-            <polyline points="17 6 23 6 23 12"></polyline>
-        </svg>
-    );
+    return <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"></polyline><polyline points="17 6 23 6 23 12"></polyline></svg>;
 }
