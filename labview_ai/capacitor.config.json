@@ -1,6 +1,13 @@
 {
-  "appId": "com.example.app",
-  "appName": "labview_ai",
+  "appId": "com.zurisky.labview",
+  "appName": "LabView AI",
   "webDir": "dist",
-  "bundledWebRuntime": false
+  "bundledWebRuntime": false,
+  "plugins": {
+    "LocalNotifications": {
+      "smallIcon": "ic_stat_icon_config_sample",
+      "iconColor": "#1D9E75",
+      "sound": "beep.wav"
+    }
+  }
 }

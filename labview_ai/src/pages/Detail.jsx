@@ -10,7 +10,7 @@ import { db } from '../firebase';
 import { doc, getDoc } from 'firebase/firestore';
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
-const genAI = new GoogleGenerativeAI(import.meta.env.VITE_GEMINI_API_KEY);
+const genAI = new GoogleGenerativeAI("AIzaSyBNPowjBHrMijHloADnyqgtXyqDM2VSO_g");
 
 export default function Detail() {
     const { id } = useParams();
@@ -21,7 +21,7 @@ export default function Detail() {
     // AI Chat State
     const [isChatOpen, setIsChatOpen] = useState(false);
     const [messages, setMessages] = useState([
-        { role: 'bot', text: 'Halo Aqsa! Ada yang ingin ditanyakan tentang hasil lab ini?' }
+        { role: 'bot', text: 'Halo user! Ada yang ingin ditanyakan tentang hasil lab ini?' }
     ]);
     const [input, setInput] = useState('');
     const [isTyping, setIsTyping] = useState(false);
@@ -54,7 +54,7 @@ export default function Detail() {
         setIsTyping(true);
 
         try {
-            const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+            const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
             const contextPrompt = `
                 Kamu adalah LabView AI Assistant. Konteks data lab user:
                 Hemoglobin: ${data?.hemoglobin}, Glucose: ${data?.glucose}, Cholesterol: ${data?.cholesterol}.
