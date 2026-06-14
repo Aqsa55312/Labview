@@ -31,7 +31,7 @@ LabView AI adalah aplikasi analisis hasil laboratorium medis berbasis AI yang di
 
 ### 🪪 6. Profil & Digital Health ID Card
 * **Digital Passport**: ID unik dan kode QR khusus pengguna.
-* Integrasi institusi pendidikan (**ULBI - Universitas Logistik dan Bisnis Internasional**) lengkap dengan informasi NPM.
+* Integrasi institusi pendidikan (**ULBI - Universitas Logistik dan Bisnis Internasional**) Zurisky Aqsa Firmansyah 613230016
 
 ---
 
