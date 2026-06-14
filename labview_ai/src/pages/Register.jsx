@@ -1,10 +1,13 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { auth, db, googleProvider } from '../firebase';
-import { createUserWithEmailAndPassword, signInWithPopup } from 'firebase/auth';
+import { createUserWithEmailAndPassword, signInWithPopup, signInWithCredential, GoogleAuthProvider } from 'firebase/auth';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { useNavigate, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Activity, UserPlus, ArrowRight, ArrowLeft } from 'lucide-react';
+import { Capacitor } from '@capacitor/core';
+import { GoogleAuth } from '@codetrix-studio/capacitor-google-auth';
+import { useLanguage } from '../LanguageContext';
 
 export default function Register() {
     const [step, setStep] = useState(1);
@@ -15,6 +18,22 @@ export default function Register() {
     const [healthGoal, setHealthGoal] = useState('Monitor Health');
     const [loading, setLoading] = useState(false);
     const navigate = useNavigate();
+    const { t } = useLanguage();
+
+    useEffect(() => {
+        if (Capacitor.isNativePlatform()) {
+            try {
+                GoogleAuth.initialize({
+                    clientId: '253168865000-7qdmsnirg1hvd0f03si34fvs4bnh7h4c.apps.googleusercontent.com',
+                    androidClientId: '253168865000-8t6v311p7o520oldgd1j238r585uq7le.apps.googleusercontent.com',
+                    scopes: 'profile,email',
+                    grantOfflineAccess: true
+                });
+            } catch (e) {
+                console.error("GoogleAuth init error:", e);
+            }
+        }
+    }, []);
 
     const handleRegister = async (e) => {
         e.preventDefault();
@@ -34,7 +53,7 @@ export default function Register() {
 
             navigate('/dashboard');
         } catch (error) {
-            alert("Registration Failed: " + error.message);
+            alert(t('registration_failed') + error.message);
         } finally {
             setLoading(false);
         }
@@ -42,18 +61,41 @@ export default function Register() {
 
     const handleGoogleSignIn = async () => {
         try {
-            const result = await signInWithPopup(auth, googleProvider);
-            const user = result.user;
+            let user;
+            if (Capacitor.isNativePlatform()) {
+                await GoogleAuth.initialize({
+                    clientId: '253168865000-7qdmsnirg1hvd0f03si34fvs4bnh7h4c.apps.googleusercontent.com',
+                    androidClientId: '253168865000-8t6v311p7o520oldgd1j238r585uq7le.apps.googleusercontent.com',
+                    scopes: 'profile,email',
+                    grantOfflineAccess: true
+                });
+                try {
+                    await GoogleAuth.signOut();
+                } catch (signOutError) {
+                    console.log("No active Google session to sign out of:", signOutError);
+                }
+                const googleUser = await GoogleAuth.signIn();
+                const credential = GoogleAuthProvider.credential(googleUser.authentication.idToken);
+                const userCredential = await signInWithCredential(auth, credential);
+                user = userCredential.user;
+            } else {
+                const result = await signInWithPopup(auth, googleProvider);
+                user = result.user;
+            }
 
             await setDoc(doc(db, "users", user.uid), {
-                fullName: user.displayName,
+                fullName: user.displayName || "Google User",
                 email: user.email,
-                updatedAt: serverTimestamp()
+                gender: 'Male',
+                healthGoal: 'Monitor Health',
+                createdAt: serverTimestamp(),
+                role: 'patient'
             }, { merge: true });
 
             navigate('/dashboard');
         } catch (error) {
-            console.error(error);
+            console.error("Google Sign-In Error:", error);
+            alert(t('google_login_failed') + (error.message || JSON.stringify(error)));
         }
     };
 
@@ -87,7 +129,7 @@ export default function Register() {
 
                 {/* TEAL PROGRESS BAR */}
                 <div className="flex justify-between items-end px-1 mb-2 text-[#1D9E75] relative z-10">
-                    <p className="text-[10px] font-black uppercase tracking-[0.2em]">{step === 1 ? 'Step 1 of 2' : 'Step 2 of 2'}</p>
+                    <p className="text-[10px] font-black uppercase tracking-[0.2em]">{step === 1 ? `${t('reg_step')} 1 ${t('reg_of')} 2` : `${t('reg_step')} 2 ${t('reg_of')} 2`}</p>
                     <p className="text-[10px] font-black">{step === 1 ? '50%' : '100%'}</p>
                 </div>
                 <div className="w-full h-1 bg-[#1e2e40] rounded-full overflow-hidden mb-10 relative z-10">
@@ -99,9 +141,9 @@ export default function Register() {
                 </div>
 
                 <div className="text-center space-y-2 mb-8 relative z-10">
-                    <h1 className="text-3xl font-black text-[#1E293B] dark:text-[#f0f6ff] tracking-tight">{step === 1 ? 'Join LabView' : 'Health Profile'}</h1>
+                    <h1 className="text-3xl font-black text-[#1E293B] dark:text-[#f0f6ff] tracking-tight">{step === 1 ? t('join_labview') : t('health_profile')}</h1>
                     <p className="text-[10px] font-bold text-slate-500 dark:text-[#4a6080] tracking-[0.2em] uppercase">
-                        {step === 1 ? 'Establish your digital identity' : 'Personalize your metrics'}
+                        {step === 1 ? t('establish_digital_identity') : t('personalize_metrics')}
                     </p>
                 </div>
 
@@ -116,7 +158,7 @@ export default function Register() {
                             onSubmit={(e) => { e.preventDefault(); setStep(2); }}
                         >
                             <div className="space-y-2">
-                                <label className="text-[10px] font-black text-slate-500 dark:text-[#4a6080] uppercase tracking-[0.2em] ml-2">Full Identity</label>
+                                <label className="text-[10px] font-black text-slate-500 dark:text-[#4a6080] uppercase tracking-[0.2em] ml-2">{t('full_identity')}</label>
                                 <input
                                     type="text"
                                     className="w-full bg-[#F8FAFC] dark:bg-[#0d1117] border border-[#E2E8F0] dark:border-[#1e2e40] rounded-[20px] py-4 px-5 text-sm text-[#1E293B] dark:text-[#f0f6ff] focus:outline-none focus:border-[#1D9E75] focus:ring-1 focus:ring-[#1D9E75] transition-all placeholder:text-slate-500 dark:text-[#4a6080]"
@@ -127,7 +169,7 @@ export default function Register() {
                                 />
                             </div>
                             <div className="space-y-2">
-                                <label className="text-[10px] font-black text-slate-500 dark:text-[#4a6080] uppercase tracking-[0.2em] ml-2">Email Address</label>
+                                <label className="text-[10px] font-black text-slate-500 dark:text-[#4a6080] uppercase tracking-[0.2em] ml-2">{t('email_address')}</label>
                                 <input
                                     type="email"
                                     className="w-full bg-[#F8FAFC] dark:bg-[#0d1117] border border-[#E2E8F0] dark:border-[#1e2e40] rounded-[20px] py-4 px-5 text-sm text-[#1E293B] dark:text-[#f0f6ff] focus:outline-none focus:border-[#1D9E75] focus:ring-1 focus:ring-[#1D9E75] transition-all placeholder:text-slate-500 dark:text-[#4a6080]"
@@ -138,7 +180,7 @@ export default function Register() {
                                 />
                             </div>
                             <div className="space-y-2">
-                                <label className="text-[10px] font-black text-slate-500 dark:text-[#4a6080] uppercase tracking-[0.2em] ml-2">Secret Code</label>
+                                <label className="text-[10px] font-black text-slate-500 dark:text-[#4a6080] uppercase tracking-[0.2em] ml-2">{t('secret_code')}</label>
                                 <input
                                     type="password"
                                     className="w-full bg-[#F8FAFC] dark:bg-[#0d1117] border border-[#E2E8F0] dark:border-[#1e2e40] rounded-[20px] py-4 px-5 text-sm text-[#1E293B] dark:text-[#f0f6ff] focus:outline-none focus:border-[#1D9E75] focus:ring-1 focus:ring-[#1D9E75] transition-all placeholder:text-slate-500 dark:text-[#4a6080]"
@@ -155,7 +197,7 @@ export default function Register() {
                                 type="submit"
                                 className="w-full bg-[#1D9E75] hover:bg-[#1D9E75]/90 text-white py-4 rounded-[20px] font-black text-[11px] uppercase tracking-[0.2em] shadow-[0_0_20px_rgba(29,158,117,0.3)] transition-all flex items-center justify-center gap-2 mt-4"
                             >
-                                CONTINUE <ArrowRight size={16} />
+                                {t('continue_btn')} <ArrowRight size={16} />
                             </motion.button>
                         </motion.form>
                     )}
@@ -171,7 +213,7 @@ export default function Register() {
                         >
                             {/* GENDER PILLS */}
                             <div className="space-y-3">
-                                <label className="text-[10px] font-black text-slate-500 dark:text-[#4a6080] uppercase tracking-[0.2em] ml-2">Biological Sex</label>
+                                <label className="text-[10px] font-black text-slate-500 dark:text-[#4a6080] uppercase tracking-[0.2em] ml-2">{t('biological_sex')}</label>
                                 <div className="flex gap-3">
                                     {['Male', 'Female'].map(g => (
                                         <button
@@ -184,7 +226,7 @@ export default function Register() {
                                                 : 'bg-[#F8FAFC] dark:bg-[#0d1117] border-[#E2E8F0] dark:border-[#1e2e40] text-slate-500 dark:text-[#4a6080] hover:bg-[#1e2e40]/50'
                                             }`}
                                         >
-                                            {g}
+                                            {g === 'Male' ? t('male') : t('female')}
                                         </button>
                                     ))}
                                 </div>
@@ -192,23 +234,30 @@ export default function Register() {
 
                             {/* HEALTH GOALS */}
                             <div className="space-y-3">
-                                <label className="text-[10px] font-black text-slate-500 dark:text-[#4a6080] uppercase tracking-[0.2em] ml-2">Primary Goal</label>
+                                <label className="text-[10px] font-black text-slate-500 dark:text-[#4a6080] uppercase tracking-[0.2em] ml-2">{t('primary_goal')}</label>
                                 <div className="grid grid-cols-1 gap-2">
-                                    {['Monitor Health', 'Manage Condition', 'Fitness Tracking'].map(hg => (
-                                        <button
-                                            key={hg}
-                                            type="button"
-                                            onClick={() => setHealthGoal(hg)}
-                                            className={`w-full py-4 px-5 rounded-[20px] border text-left font-bold text-[11px] uppercase tracking-wider transition-all flex justify-between items-center ${
-                                                healthGoal === hg 
-                                                ? 'bg-[#1D9E75]/10 border-[#1D9E75] text-[#1D9E75]' 
-                                                : 'bg-[#F8FAFC] dark:bg-[#0d1117] border-[#E2E8F0] dark:border-[#1e2e40] text-slate-500 dark:text-[#4a6080] hover:bg-[#1e2e40]/50'
-                                            }`}
-                                        >
-                                            {hg}
-                                            {healthGoal === hg && <Activity size={14} />}
-                                        </button>
-                                    ))}
+                                    {['Monitor Health', 'Manage Condition', 'Fitness Tracking'].map(hg => {
+                                        const getGoalLabel = (goal) => {
+                                            if (goal === 'Monitor Health') return t('monitor_health');
+                                            if (goal === 'Manage Condition') return t('manage_condition');
+                                            return t('fitness_tracking');
+                                        };
+                                        return (
+                                            <button
+                                                key={hg}
+                                                type="button"
+                                                onClick={() => setHealthGoal(hg)}
+                                                className={`w-full py-4 px-5 rounded-[20px] border text-left font-bold text-[11px] uppercase tracking-wider transition-all flex justify-between items-center ${
+                                                    healthGoal === hg 
+                                                    ? 'bg-[#1D9E75]/10 border-[#1D9E75] text-[#1D9E75]' 
+                                                    : 'bg-[#F8FAFC] dark:bg-[#0d1117] border-[#E2E8F0] dark:border-[#1e2e40] text-slate-500 dark:text-[#4a6080] hover:bg-[#1e2e40]/50'
+                                                }`}
+                                            >
+                                                {getGoalLabel(hg)}
+                                                {healthGoal === hg && <Activity size={14} />}
+                                            </button>
+                                        );
+                                    })}
                                 </div>
                             </div>
 
@@ -219,7 +268,7 @@ export default function Register() {
                                 disabled={loading}
                                 className="w-full bg-[#1D9E75] disabled:bg-[#1e2e40] disabled:text-slate-500 dark:text-[#4a6080] hover:bg-[#1D9E75]/90 text-white py-4 rounded-[20px] font-black text-[11px] uppercase tracking-[0.2em] shadow-[0_0_20px_rgba(29,158,117,0.3)] transition-all flex items-center justify-center gap-2 mt-4"
                             >
-                                {loading ? "INITIALIZING..." : "FINALIZE PROFILE"}
+                                {loading ? t('initializing') : t('finalize_profile')}
                             </motion.button>
                         </motion.form>
                     )}
@@ -229,7 +278,7 @@ export default function Register() {
                     <>
                     <div className="relative py-6 z-10">
                         <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-[#E2E8F0] dark:border-[#1e2e40]"></div></div>
-                        <div className="relative flex justify-center text-[10px] font-black uppercase text-slate-500 dark:text-[#4a6080] bg-[#FFFFFF] dark:bg-[#161d28] px-4 tracking-[0.2em]">Quick Setup</div>
+                        <div className="relative flex justify-center text-[10px] font-black uppercase text-slate-500 dark:text-[#4a6080] bg-[#FFFFFF] dark:bg-[#161d28] px-4 tracking-[0.2em]">{t('quick_setup')}</div>
                     </div>
 
                     <div className="w-full mb-6 relative z-10">
@@ -240,12 +289,12 @@ export default function Register() {
                             className="w-full flex items-center justify-center gap-3 bg-[#F8FAFC] dark:bg-[#0d1117] border border-[#E2E8F0] dark:border-[#1e2e40] py-4 rounded-[20px] hover:bg-[#1e2e40]/50 transition-colors text-xs font-bold text-[#1E293B] dark:text-[#f0f6ff] shadow-sm"
                         >
                             <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" className="w-4 h-4" alt="Google" /> 
-                            <span className="tracking-wide">Import Google Profile</span>
+                            <span className="tracking-wide">{t('import_google_profile')}</span>
                         </motion.button>
                     </div>
 
                     <p className="text-center text-[11px] font-bold text-slate-500 dark:text-[#4a6080] relative z-10">
-                        ALREADY HAVE ACCESS? <Link to="/login" className="text-[#1D9E75] hover:underline uppercase tracking-wide ml-1">Login Here</Link>
+                        {t('already_have_access')} <Link to="/login" className="text-[#1D9E75] hover:underline uppercase tracking-wide ml-1">{t('login_here')}</Link>
                     </p>
                     </>
                 )}

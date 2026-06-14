@@ -5,6 +5,7 @@ import { onAuthStateChanged } from 'firebase/auth';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowLeft, Search, Filter, FileText, AlertTriangle, CheckCircle, Activity, Home, BatteryCharging, User } from 'lucide-react';
+import { useLanguage } from '../LanguageContext';
 
 export default function History() {
     const [history, setHistory] = useState([]);
@@ -12,30 +13,44 @@ export default function History() {
     const [searchQuery, setSearchQuery] = useState('');
     const [filterOption, setFilterOption] = useState('All'); // All, Normal, Watch, Alert
     const navigate = useNavigate();
+    const { t } = useLanguage();
 
     useEffect(() => {
         const unsubscribe = onAuthStateChanged(auth, async (user) => {
             if (user) {
-                const q = query(
-                    collection(db, "lab_results"),
-                    where("userId", "==", user.uid),
-                    orderBy("createdAt", "desc")
-                );
-                const snapshot = await getDocs(q);
-                const list = snapshot.docs.map(doc => {
-                    const data = doc.data();
-                    let status = "NORMAL";
-                    
-                    if (data.glucose > 110 || (data.hemoglobin > 0 && (data.hemoglobin < 13 || data.hemoglobin > 18))) {
-                        status = "ALERT";
-                    } else if (data.glucose > 100 || (data.cholesterol > 200)) {
-                        status = "WATCH";
-                    }
+                try {
+                    const q = query(
+                        collection(db, "lab_results"),
+                        where("userId", "==", user.uid)
+                    );
+                    const snapshot = await getDocs(q);
+                    const list = snapshot.docs.map(doc => {
+                        const data = doc.data();
+                        let status = "NORMAL";
+                        
+                        if (data.glucose > 110 || (data.hemoglobin > 0 && (data.hemoglobin < 13 || data.hemoglobin > 18))) {
+                            status = "ALERT";
+                        } else if (data.glucose > 100 || (data.cholesterol > 200)) {
+                            status = "WATCH";
+                        }
 
-                    return { id: doc.id, ...data, status };
-                });
-                setHistory(list);
-                setLoading(false);
+                        return { 
+                            id: doc.id, 
+                            ...data, 
+                            status,
+                            createdAtDate: data.createdAt?.toDate() || new Date(0)
+                        };
+                    });
+                    
+                    // Sort descending in Javascript
+                    list.sort((a, b) => b.createdAtDate - a.createdAtDate);
+                    
+                    setHistory(list);
+                } catch (error) {
+                    console.error("Gagal mengambil riwayat:", error);
+                } finally {
+                    setLoading(false);
+                }
             } else {
                 navigate('/login');
             }
@@ -64,7 +79,7 @@ export default function History() {
 
     if (loading) return (
         <div className="min-h-screen flex items-center justify-center bg-[#F8FAFC] dark:bg-[#0d1117] font-black text-[#1D9E75] animate-pulse uppercase tracking-[0.3em] text-[10px]">
-            RETRIEVING ARCHIVES...
+            {t('retrieving_archives')}
         </div>
     );
 
@@ -81,10 +96,10 @@ export default function History() {
                 </div>
                 <div>
                     <h1 className="font-black text-[10px] text-slate-500 dark:text-[#4a6080] tracking-[0.4em] uppercase mb-1">
-                        History Archive
+                        {t('history_archive')}
                     </h1>
                     <p className="text-[#1E293B] dark:text-[#f0f6ff] text-sm font-medium tracking-wide">
-                        Medical Records Timeline
+                        {t('medical_timeline')}
                     </p>
                 </div>
 
@@ -94,7 +109,7 @@ export default function History() {
                         <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 dark:text-[#4a6080]" />
                         <input 
                             type="text" 
-                            placeholder="Search interpretation or date..." 
+                            placeholder={t('search_placeholder')} 
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
                             className="w-full bg-[#FFFFFF] dark:bg-[#161d28] border border-[#E2E8F0] dark:border-[#1e2e40] rounded-[20px] py-3 pl-12 pr-4 text-[11px] text-[#1E293B] dark:text-white focus:outline-none focus:border-[#1D9E75] transition-colors placeholder:text-slate-500 dark:text-[#4a6080]"
@@ -111,7 +126,7 @@ export default function History() {
                                     : 'bg-[#FFFFFF] dark:bg-[#161d28] border-[#E2E8F0] dark:border-[#1e2e40] text-slate-500 dark:text-[#4a6080] hover:bg-[#1e2e40]'
                                 }`}
                             >
-                                {opt}
+                                {opt === 'All' ? t('all') : opt === 'Normal' ? t('normal') : opt === 'Watch' ? t('watch') : t('alert')}
                             </button>
                         ))}
                     </div>
@@ -142,16 +157,18 @@ export default function History() {
                                         </div>
                                         <div className={`px-3 py-1.5 rounded-full border flex items-center gap-1.5 ${getStatusStyle(item.status)}`}>
                                             {getStatusIcon(item.status)}
-                                            <span className="text-[8px] font-black uppercase tracking-widest">{item.status}</span>
+                                            <span className="text-[8px] font-black uppercase tracking-widest">
+                                                {item.status === 'ALERT' ? t('alert') : item.status === 'WATCH' ? t('watch') : t('normal')}
+                                            </span>
                                         </div>
                                     </div>
-
+ 
                                     <h3 className="font-bold text-[#1E293B] dark:text-[#f0f6ff] text-[13px] mb-2">
                                         {item.createdAt?.toDate().toLocaleDateString('en-US', { day: 'numeric', month: 'long', year: 'numeric' })}
                                     </h3>
                                     
                                     <p className="text-[11px] text-slate-500 dark:text-[#4a6080] leading-relaxed italic line-clamp-2">
-                                        {item.interpretation || "No interpretation provided by AI model."}
+                                        {item.interpretation || t('no_interpretation')}
                                     </p>
                                     
                                     {/* Metrics Pills */}
@@ -167,7 +184,7 @@ export default function History() {
                                 animate={{ opacity: 1 }} 
                                 className="text-center py-20 bg-[#FFFFFF] dark:bg-[#161d28] rounded-[40px] border border-dashed border-[#E2E8F0] dark:border-[#1e2e40] ml-[-24px]"
                             >
-                                <p className="text-[10px] font-black text-slate-500 dark:text-[#4a6080] uppercase tracking-widest">No Archival Records Found</p>
+                                <p className="text-[10px] font-black text-slate-500 dark:text-[#4a6080] uppercase tracking-widest">{t('no_archival_records_found')}</p>
                             </motion.div>
                         )}
                     </AnimatePresence>
@@ -177,19 +194,19 @@ export default function History() {
             <nav className="fixed bottom-6 left-6 right-6 max-w-md mx-auto bg-white/90 dark:bg-[#161d28]/90 backdrop-blur-xl border border-[#E2E8F0] dark:border-[#1e2e40] rounded-[30px] p-4 flex justify-around items-center z-50 shadow-2xl">
                 <div onClick={() => navigate('/dashboard')} className="flex flex-col items-center text-slate-500 dark:text-[#4a6080] hover:text-[#1E293B] dark:hover:text-[#f0f6ff] cursor-pointer transition-colors">
                     <Home size={20} className="mb-1" />
-                    <span className="text-[8px] font-black uppercase tracking-[0.2em] mt-1">Home</span>
+                    <span className="text-[8px] font-black uppercase tracking-[0.2em] mt-1">{t('nav_home')}</span>
                 </div>
                 <div onClick={() => navigate('/history')} className="flex flex-col items-center text-[#1D9E75] cursor-pointer">
                     <Search size={20} className="mb-1" />
-                    <span className="text-[8px] font-black uppercase tracking-[0.2em] mt-1">History</span>
+                    <span className="text-[8px] font-black uppercase tracking-[0.2em] mt-1">{t('nav_history')}</span>
                 </div>
                 <div onClick={() => navigate('/trends')} className="flex flex-col items-center text-slate-500 dark:text-[#4a6080] hover:text-[#1E293B] dark:hover:text-[#f0f6ff] cursor-pointer transition-colors">
                     <BatteryCharging size={20} className="mb-1" />
-                    <span className="text-[8px] font-black uppercase tracking-[0.2em] mt-1">Trends</span>
+                    <span className="text-[8px] font-black uppercase tracking-[0.2em] mt-1">{t('nav_trends')}</span>
                 </div>
                 <div onClick={() => navigate('/profile')} className="flex flex-col items-center text-slate-500 dark:text-[#4a6080] hover:text-[#1E293B] dark:hover:text-[#f0f6ff] cursor-pointer transition-colors">
                     <User size={20} className="mb-1" />
-                    <span className="text-[8px] font-black uppercase tracking-[0.2em] mt-1">Profile</span>
+                    <span className="text-[8px] font-black uppercase tracking-[0.2em] mt-1">{t('nav_profile')}</span>
                 </div>
             </nav>
         </div>

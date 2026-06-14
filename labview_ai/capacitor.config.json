@@ -8,6 +8,11 @@
       "smallIcon": "ic_stat_icon_config_sample",
       "iconColor": "#1D9E75",
       "sound": "beep.wav"
+    },
+    "GoogleAuth": {
+      "clientId": "253168865000-7qdmsnirg1hvd0f03si34fvs4bnh7h4c.apps.googleusercontent.com",
+      "androidClientId": "253168865000-8t6v311p7o520oldgd1j238r585uq7le.apps.googleusercontent.com",
+      "forceCodeForRefreshToken": true
     }
   }
 }

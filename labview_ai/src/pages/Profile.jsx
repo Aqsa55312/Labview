@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronLeft, LogOut, Shield, Settings, QrCode, User, Activity, Sun, Moon } from 'lucide-react';
 import { auth, db } from '../firebase';
 import { collection, query, where, getDocs } from 'firebase/firestore';
+import { useLanguage } from '../LanguageContext';
 
 export default function Profile() {
     const navigate = useNavigate();
@@ -15,6 +16,7 @@ export default function Profile() {
     const [stability, setStability] = useState("OPTIMAL");
     const [loading, setLoading] = useState(true);
     const user = auth.currentUser;
+    const { language, t } = useLanguage();
 
     const toggleTheme = () => {
         const newTheme = !isDark;
@@ -122,13 +124,13 @@ export default function Profile() {
                     <div className="absolute top-0 right-0 p-8 opacity-20"><QrCode size={100} /></div>
                     <div className="flex justify-between items-start mb-6">
                         <div>
-                            <p className="text-[10px] font-black text-white/80 tracking-[0.4em] uppercase mb-1">Health Passport</p>
+                            <p className="text-[10px] font-black text-white/80 tracking-[0.4em] uppercase mb-1">{t('health_passport')}</p>
                             <h3 className="text-xl font-black italic tracking-tighter uppercase">
                                 ID: {user?.uid?.substring(0, 8)}
                             </h3>
                         </div>
                         <div className="text-right">
-                            <p className="text-[8px] font-black text-white/80 uppercase tracking-widest mb-1">Institution</p>
+                            <p className="text-[8px] font-black text-white/80 uppercase tracking-widest mb-1">{t('institution')}</p>
                             <p className="text-xs font-black uppercase tracking-widest">ULBI</p>
                             <p className="text-[10px] font-bold text-white/80 mt-1">NPM: 613230016</p>
                         </div>
@@ -136,15 +138,15 @@ export default function Profile() {
 
                     <div className="grid grid-cols-2 gap-6 pt-4 border-t border-white/20">
                         <div>
-                            <p className="text-[8px] font-black text-white/60 uppercase tracking-widest">Total Records</p>
+                            <p className="text-[8px] font-black text-white/60 uppercase tracking-widest">{t('total_records_profile')}</p>
                             <p className="text-lg font-black text-white italic">
-                                {loading ? "..." : `${totalScans} SCANS`}
+                                {loading ? "..." : `${totalScans} ${language === 'id' ? 'SCAN' : 'SCANS'}`}
                             </p>
                         </div>
                         <div>
-                            <p className="text-[8px] font-black text-white/60 uppercase tracking-widest">Verification</p>
+                            <p className="text-[8px] font-black text-white/60 uppercase tracking-widest">{t('verification')}</p>
                             <p className={`text-lg font-black italic uppercase ${user?.emailVerified ? 'text-white' : 'text-red-300'}`}>
-                                {user?.emailVerified ? 'VERIFIED' : 'UNVERIFIED'}
+                                {user?.emailVerified ? t('verified') : t('unverified')}
                             </p>
                         </div>
                     </div>
@@ -158,9 +160,9 @@ export default function Profile() {
                         className="bg-[#FFFFFF] dark:bg-[#161d28] p-6 rounded-[30px] border border-[#E2E8F0] dark:border-[#1e2e40] transition-colors"
                     >
                         <Activity size={20} className={stability === 'OPTIMAL' ? 'text-[#1D9E75] mb-2' : stability === 'WARNING' ? 'text-yellow-500 mb-2' : 'text-red-500 mb-2'} />
-                        <p className="text-[8px] font-black text-slate-500 dark:text-[#4a6080] uppercase tracking-[0.3em]">Stability</p>
+                        <p className="text-[8px] font-black text-slate-500 dark:text-[#4a6080] uppercase tracking-[0.3em]">{t('stability')}</p>
                         <p className={`text-xl font-black italic ${stability === 'OPTIMAL' ? 'text-[#1E293B] dark:text-[#f0f6ff]' : stability === 'WARNING' ? 'text-yellow-500' : 'text-red-500'}`}>
-                            {stability}
+                            {stability === 'OPTIMAL' ? t('optimal') : stability === 'WARNING' ? t('watch') : t('alert')}
                         </p>
                     </motion.div>
                     <motion.div 
@@ -170,7 +172,7 @@ export default function Profile() {
                         className="bg-[#FFFFFF] dark:bg-[#161d28] p-6 rounded-[30px] border border-[#E2E8F0] dark:border-[#1e2e40] transition-colors"
                     >
                         <LogOut size={20} className="text-blue-500 dark:text-blue-400 mb-2 rotate-180" />
-                        <p className="text-[8px] font-black text-slate-500 dark:text-[#4a6080] uppercase tracking-[0.3em]">Joined</p>
+                        <p className="text-[8px] font-black text-slate-500 dark:text-[#4a6080] uppercase tracking-[0.3em]">{t('joined')}</p>
                         <p className="text-xl font-black italic text-[#1E293B] dark:text-[#f0f6ff]">{user?.metadata?.creationTime ? new Date(user.metadata.creationTime).getFullYear() : "2026"}</p>
                     </motion.div>
                 </div>
@@ -184,21 +186,21 @@ export default function Profile() {
                 >
                     <ProfileMenu 
                         icon={<User size={18} />} 
-                        label="Personal Data"
+                        label={t('personal_data')}
                         isExpanded={expandedMenu === 'personal'}
                         onClick={() => setExpandedMenu(expandedMenu === 'personal' ? null : 'personal')}
                     >
                         <div className="space-y-4">
                             <div>
-                                <p className="text-[9px] font-black uppercase tracking-widest text-slate-500 dark:text-[#4a6080] mb-1">Full Name (Identifier)</p>
+                                <p className="text-[9px] font-black uppercase tracking-widest text-slate-500 dark:text-[#4a6080] mb-1">{t('fullname_identifier')}</p>
                                 <p className="font-bold text-[#1E293B] dark:text-white text-sm">{user?.displayName || user?.email?.split('@')[0]}</p>
                             </div>
                             <div>
-                                <p className="text-[9px] font-black uppercase tracking-widest text-slate-500 dark:text-[#4a6080] mb-1">Registered Email</p>
+                                <p className="text-[9px] font-black uppercase tracking-widest text-slate-500 dark:text-[#4a6080] mb-1">{t('registered_email')}</p>
                                 <p className="font-bold text-[#1E293B] dark:text-white text-sm">{user?.email}</p>
                             </div>
                             <div>
-                                <p className="text-[9px] font-black uppercase tracking-widest text-slate-500 dark:text-[#4a6080] mb-1">Account UID</p>
+                                <p className="text-[9px] font-black uppercase tracking-widest text-slate-500 dark:text-[#4a6080] mb-1">{t('account_uid')}</p>
                                 <p className="font-bold text-[#1E293B] dark:text-white text-[10px] break-all">{user?.uid}</p>
                             </div>
                         </div>
@@ -206,21 +208,21 @@ export default function Profile() {
 
                     <ProfileMenu 
                         icon={<Shield size={18} />} 
-                        label="Privacy & Security"
+                        label={t('privacy_security')}
                         isExpanded={expandedMenu === 'privacy'}
                         onClick={() => setExpandedMenu(expandedMenu === 'privacy' ? null : 'privacy')}
                     >
                         <div className="space-y-3">
                             <div className="flex justify-between items-center bg-slate-50 dark:bg-[#0d1117] p-3 rounded-2xl border border-slate-100 dark:border-white/5 transition-colors">
                                 <div>
-                                    <p className="text-[9px] font-black uppercase tracking-widest text-slate-500 dark:text-[#4a6080]">Auth Mechanism</p>
+                                    <p className="text-[9px] font-black uppercase tracking-widest text-slate-500 dark:text-[#4a6080]">{t('auth_mechanism')}</p>
                                     <p className="font-bold text-[#1E293B] dark:text-white capitalize text-xs mt-0.5">{user?.providerData[0]?.providerId.split('.')[0] || "Email / Password"}</p>
                                 </div>
                                 <Shield size={16} className="text-[#1D9E75]" />
                             </div>
                             <div className="flex justify-between items-center bg-slate-50 dark:bg-[#0d1117] p-3 rounded-2xl border border-slate-100 dark:border-white/5 transition-colors">
                                 <div>
-                                    <p className="text-[9px] font-black uppercase tracking-widest text-slate-500 dark:text-[#4a6080]">Last Active (Sign In)</p>
+                                    <p className="text-[9px] font-black uppercase tracking-widest text-slate-500 dark:text-[#4a6080]">{t('last_active')}</p>
                                     <p className="font-bold text-[#1E293B] dark:text-white text-xs mt-0.5">
                                         {user?.metadata?.lastSignInTime ? new Date(user.metadata.lastSignInTime).toLocaleDateString('id-ID', {day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit'}) : "Session Active"}
                                     </p>
@@ -235,7 +237,7 @@ export default function Profile() {
                         className="w-full bg-[#FFFFFF] dark:bg-[#161d28] border border-red-200 dark:border-red-900/20 rounded-[30px] p-6 flex items-center gap-4 text-red-500 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors"
                     >
                         <LogOut size={18} />
-                        <span className="text-[10px] font-black uppercase tracking-[0.3em]">Sign Out From Account</span>
+                        <span className="text-[10px] font-black uppercase tracking-[0.3em]">{t('sign_out_from_account')}</span>
                     </button>
                 </motion.div>
             </main>
@@ -261,7 +263,7 @@ export default function Profile() {
                         >
                             <div className="w-12 h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full mx-auto mb-8"></div>
                             
-                            <h3 className="text-xl font-black italic uppercase text-[#1E293B] dark:text-[#f0f6ff] mb-6 tracking-tight transition-colors">App Settings</h3>
+                            <h3 className="text-xl font-black italic uppercase text-[#1E293B] dark:text-[#f0f6ff] mb-6 tracking-tight transition-colors">{t('app_settings')}</h3>
                             
                             <div className="space-y-4">
                                 {/* THEME TOGGLE */}
@@ -271,8 +273,8 @@ export default function Profile() {
                                             {isDark ? <Moon size={18} fill="currentColor" /> : <Sun size={18} fill="currentColor" />}
                                         </div>
                                         <div>
-                                            <p className="text-[10px] font-black uppercase tracking-widest text-[#1E293B] dark:text-white transition-colors">Appearance</p>
-                                            <p className="text-[9px] font-medium text-slate-500 dark:text-[#4a6080] transition-colors">{isDark ? "Antigravity Dark Mode" : "Clinical Light Mode"}</p>
+                                            <p className="text-[10px] font-black uppercase tracking-widest text-[#1E293B] dark:text-white transition-colors">{t('appearance')}</p>
+                                            <p className="text-[9px] font-medium text-slate-500 dark:text-[#4a6080] transition-colors">{isDark ? t('dark_mode') : t('light_mode')}</p>
                                         </div>
                                     </div>
                                     <button 
@@ -293,8 +295,8 @@ export default function Profile() {
                                             <Shield size={18} fill="currentColor" />
                                         </div>
                                         <div>
-                                            <p className="text-[10px] font-black uppercase tracking-widest text-[#1E293B] dark:text-white transition-colors">Delete Account</p>
-                                            <p className="text-[9px] font-medium text-slate-500 dark:text-[#4a6080] transition-colors">Contact Support for Deactivation</p>
+                                            <p className="text-[10px] font-black uppercase tracking-widest text-[#1E293B] dark:text-white transition-colors">{t('delete_account')}</p>
+                                            <p className="text-[9px] font-medium text-slate-500 dark:text-[#4a6080] transition-colors">{t('contact_support')}</p>
                                         </div>
                                     </div>
                                 </div>

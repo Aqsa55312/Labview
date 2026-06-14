@@ -11,8 +11,8 @@
   },
   "dependencies": {
     "@capacitor/camera": "^8.1.0",
-    "@capacitor/cli": "^7.6.1",
-    "@capacitor/core": "^8.3.0",
+    "@capacitor/cli": "^7.6.2",
+    "@capacitor/core": "^8.3.1",
     "@capacitor/filesystem": "^8.1.2",
     "@capacitor/preferences": "^8.0.1",
     "@ionic/pwa-elements": "^3.4.0",

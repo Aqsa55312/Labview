@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "253168865000",
+    "project_id": "labview-86dbd",
+    "storage_bucket": "labview-86dbd.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:253168865000:android:d202a13ee10a01b993035d",
+        "android_client_info": {
+          "package_name": "com.zurisky.labview"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "253168865000-8t6v311p7o520oldgd1j238r585uq7le.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.zurisky.labview",
+            "certificate_hash": "6c34cbf2ab1562a6bdb31a02405e76704484d7a1"
+          }
+        },
+        {
+          "client_id": "253168865000-7qdmsnirg1hvd0f03si34fvs4bnh7h4c.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD-4wKVMG-DiU5s68rqwiyFopHLJfuHAFw"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "253168865000-7qdmsnirg1hvd0f03si34fvs4bnh7h4c.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

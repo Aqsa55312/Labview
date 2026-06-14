@@ -3,25 +3,23 @@ import { db, auth } from '../firebase';
 import { collection, addDoc, serverTimestamp, query, where, orderBy, limit, getDocs } from 'firebase/firestore';
 import { useNavigate } from 'react-router-dom';
 import Tesseract from 'tesseract.js';
-import { GoogleGenerativeAI } from "@google/generative-ai";
 import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowLeft, FilePlus, Camera, Activity, Home, FileText, User } from 'lucide-react';
 import { Camera as CapCamera, CameraResultType, CameraSource } from '@capacitor/camera';
-
-// API Key Gemini
-const genAI = new GoogleGenerativeAI("AIzaSyBNPowjBHrMijHloADnyqgtXyqDM2VSO_g");
-
+import { analyzeLabData } from '../services/openrouter';
+import { useLanguage } from '../LanguageContext';
 
 export default function Scan() {
     const [loading, setLoading] = useState(false);
     const [progress, setProgress] = useState(0);
     const [detectedValues, setDetectedValues] = useState([]);
     const [step, setStep] = useState(1);
+    const { t } = useLanguage();
     const [aiResult, setAiResult] = useState(null);
     const [recentScans, setRecentScans] = useState([]);
+    const [previewUrl, setPreviewUrl] = useState(null);
     const navigate = useNavigate();
 
-    // REFS: Dipisah agar bisa trigger kamera langsung
     const fileInputRef = useRef(null);
     const cameraInputRef = useRef(null);
 
@@ -42,57 +40,23 @@ export default function Scan() {
         }
     };
 
-    useEffect(() => {
-        const fetchRecent = async () => {
-            if (auth.currentUser) {
-                try {
-                    const q = query(
-                        collection(db, "lab_results"),
-                        where("userId", "==", auth.currentUser.uid),
-                        orderBy("createdAt", "desc"),
-                        limit(3)
-                    );
-                    const snap = await getDocs(q);
-                    setRecentScans(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-                } catch (e) { console.error(e); }
-            }
-        };
-        fetchRecent();
-    }, []);
-
-    const runAIAnalysis = async (text, retryCount = 0) => {
+    const runAIAnalysis = async (text) => {
         try {
-            const model = genAI.getGenerativeModel({
-                model: "gemini-2.5-flash",
-                generationConfig: { responseMimeType: "application/json" }
-            });
-
-            const prompt = `
-                Tugas: Anda adalah ahli ekstraksi data medis LabView AI. 
-                Analisis teks hasil OCR berikut: "${text}"
-
-                TUGAS EKSTRAKSI:
-                1. main_metrics: Ekstrak HANYA ANGKA untuk glucose, hemoglobin, cholesterol, dan uric_acid. (Gunakan 0 jika tidak ada).
-                2. all_data: Cari SEMUA temuan medis lainnya.
-                3. explanation: Berikan narasi interpretasi klinis mendalam minimal 3 paragraf.
-
-                RESPON WAJIB JSON MURNI:
-                {
-                  "explanation": "...",
-                  "main_metrics": { "glucose": 0, "hemoglobin": 0, "cholesterol": 0, "uric_acid": 0 },
-                  "all_data": { "Nama Parameter": "Nilai/Hasil" }
-                }
-            `;
-
-            const result = await model.generateContent(prompt);
-            const response = await result.response;
-            return JSON.parse(response.text());
-
-        } catch (error) {
-            if (error.message.includes("503") && retryCount < 2) {
-                await new Promise(res => setTimeout(res, 3000));
-                return runAIAnalysis(text, retryCount + 1);
+            const resultText = await analyzeLabData(text);
+            try {
+                return JSON.parse(resultText);
+            } catch (e) {
+                // If OpenRouter returns plain text explanation instead of JSON
+                return {
+                    explanation: resultText,
+                    main_metrics: { glucose: 0, hemoglobin: 0, cholesterol: 0, uric_acid: 0 },
+                    all_data: {},
+                    overall_status: "normal",
+                    test_date: new Date().toISOString().split('T')[0]
+                };
             }
+        } catch (error) {
+            console.error("AI Analysis Error:", error);
             throw error;
         }
     };
@@ -121,45 +85,67 @@ export default function Scan() {
 
     const processFile = async (file) => {
         if (!file) return;
-        setStep(2);
-        setLoading(true);
-        setProgress(15);
-        setDetectedValues([]);
+        const url = URL.createObjectURL(file);
+        setPreviewUrl(url);
+        setStep(1.5);
 
-        try {
-            const ocr = await Tesseract.recognize(file, 'eng+ind');
-            const rawText = ocr.data.text;
-            setProgress(40);
-            const aiData = await runAIAnalysis(rawText);
-            setAiResult(aiData);
-            simulateExtraction(aiData.main_metrics);
-        } catch (error) {
-            console.error(error);
-            alert("Gagal menganalisis dokumen.");
-            setStep(1);
-        } finally {
-            setLoading(false);
-        }
+        setTimeout(async () => {
+            setStep(2);
+            setLoading(true);
+            setProgress(15);
+            setDetectedValues([]);
+
+            try {
+                const ocr = await Tesseract.recognize(file, 'eng+ind');
+                const rawText = ocr.data.text;
+                setProgress(40);
+                
+                const aiData = await runAIAnalysis(rawText);
+                setAiResult(aiData);
+                
+                if (aiData.main_metrics) {
+                    simulateExtraction(aiData.main_metrics);
+                } else {
+                    setStep(3);
+                }
+            } catch (error) {
+                console.error(error);
+                alert(t('ocr_error'));
+                setStep(1);
+            } finally {
+                setLoading(false);
+            }
+        }, 2000);
     };
 
     const handleSave = async () => {
         if (!aiResult || loading) return;
         setLoading(true);
+
+        const finalMetrics = {
+            glucose: detectedValues.find(i => i.label.includes('Glucose'))?.value || 0,
+            hemoglobin: detectedValues.find(i => i.label.includes('Hemoglobin'))?.value || 0,
+            cholesterol: detectedValues.find(i => i.label.includes('Cholesterol'))?.value || 0,
+            uric_acid: detectedValues.find(i => i.label.includes('Uric Acid'))?.value || 0,
+        };
+
         try {
             if (auth.currentUser) {
                 await addDoc(collection(db, "lab_results"), {
                     userId: auth.currentUser.uid,
                     interpretation: aiResult.explanation,
-                    glucose: Number(aiResult.main_metrics?.glucose) || 0,
-                    hemoglobin: Number(aiResult.main_metrics?.hemoglobin) || 0,
-                    cholesterol: Number(aiResult.main_metrics?.cholesterol) || 0,
-                    uric_acid: Number(aiResult.main_metrics?.uric_acid) || 0,
+                    glucose: Number(finalMetrics.glucose),
+                    hemoglobin: Number(finalMetrics.hemoglobin),
+                    cholesterol: Number(finalMetrics.cholesterol),
+                    uric_acid: Number(finalMetrics.uric_acid),
                     all_data: aiResult.all_data || {},
+                    overall_status: aiResult.overall_status || "normal",
+                    test_date: aiResult.test_date || "",
                     createdAt: serverTimestamp()
                 });
             }
             navigate('/dashboard');
-        } catch (e) { alert("Gagal menyimpan."); }
+        } catch (e) { alert(t('save_failed')); }
         finally { setLoading(false); }
     };
 
@@ -172,8 +158,8 @@ export default function Scan() {
                     </button>
                 </div>
                 <div>
-                    <h1 className="font-black text-[10px] text-slate-500 dark:text-[#4a6080] tracking-[0.4em] uppercase mb-1">Smart Ingestion</h1>
-                    <p className="text-[#1E293B] dark:text-[#f0f6ff] text-sm font-medium tracking-wide">Upload medical reports for AI analysis</p>
+                    <h1 className="font-black text-[10px] text-slate-500 dark:text-[#4a6080] tracking-[0.4em] uppercase mb-1">{t('smart_ingestion')}</h1>
+                    <p className="text-[#1E293B] dark:text-[#f0f6ff] text-sm font-medium tracking-wide">{t('upload_medical_reports')}</p>
                 </div>
             </header>
 
@@ -192,51 +178,60 @@ export default function Scan() {
                                     <div className="absolute inset-0 rounded-full bg-[#1D9E75] blur-xl opacity-20 group-hover:opacity-40 transition-opacity"></div>
                                     <FilePlus size={40} className="text-[#1D9E75] relative z-10" />
                                 </div>
-                                <h3 className="text-xl font-bold tracking-tight mb-2">Select medical file</h3>
-                                <p className="text-sm font-medium text-slate-500 dark:text-[#4a6080] mb-8 text-center max-w-[200px]">Supports PDF, JPG and PNG files up to 10MB</p>
-                                <button className="bg-[#1D9E75] text-white px-8 py-4 rounded-2xl font-bold text-xs uppercase tracking-[0.2em] shadow-lg">Select File</button>
+                                <h3 className="text-xl font-bold tracking-tight mb-2">{t('select_medical_file')}</h3>
+                                <p className="text-sm font-medium text-slate-500 dark:text-[#4a6080] mb-8 text-center max-w-[200px]">{t('file_types_supported')}</p>
+                                <button className="bg-[#1D9E75] text-white px-8 py-4 rounded-2xl font-bold text-xs uppercase tracking-[0.2em] shadow-lg">{t('select_file_btn')}</button>
 
-                                {/* INPUT HIDDEN KHUSUS FILE/GALLERY */}
                                 <input type="file" ref={fileInputRef} accept="image/*,application/pdf" onChange={(e) => processFile(e.target.files[0])} className="hidden" />
-
-                                {/* INPUT HIDDEN KHUSUS KAMERA (Mobile) */}
                                 <input type="file" ref={cameraInputRef} accept="image/*" capture="environment" onChange={(e) => processFile(e.target.files[0])} className="hidden" />
                             </motion.div>
 
-                            {/* AI STATUS */}
                             <div className="bg-white dark:bg-[#161d28] border border-[#E2E8F0] dark:border-[#1e2e40] p-4 rounded-3xl flex items-center justify-between">
                                 <div className="flex items-center gap-3">
                                     <div className="w-10 h-10 rounded-full bg-[#1D9E75]/10 flex items-center justify-center"><Activity size={18} className="text-[#1D9E75]" /></div>
                                     <div>
-                                        <p className="text-[10px] font-bold text-slate-500 tracking-[0.1em] mb-1 uppercase">AI Engine Status</p>
-                                        <p className="text-[11px] font-semibold text-[#1E293B] dark:text-white">GEMINI 2.5 FLASH : ACTIVE</p>
+                                        <p className="text-[10px] font-bold text-slate-500 tracking-[0.1em] mb-1 uppercase">{t('ai_engine_status')}</p>
+                                        <p className="text-[11px] font-semibold text-[#1E293B] dark:text-white">{t('openrouter_active')}</p>
                                     </div>
                                 </div>
                             </div>
 
-                            {/* TOMBOL ACTIONS */}
                             <div className="grid grid-cols-2 gap-4 mt-2">
                                 <motion.button
                                     whileTap={{ scale: 0.95 }}
-                                    onClick={handleTakePhoto} // Menggunakan Plugin Camera Capacitor
+                                    onClick={handleTakePhoto}
                                     className="bg-white dark:bg-[#161d28] border border-[#E2E8F0] dark:border-[#1e2e40] p-5 rounded-[25px] flex flex-col items-center justify-center gap-3"
                                 >
                                     <Camera size={24} className="text-slate-500" />
-                                    <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500">TAKE PHOTO</span>
+                                    <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500">{t('take_photo_btn')}</span>
                                 </motion.button>
                                 <motion.button
                                     whileTap={{ scale: 0.95 }}
-                                    onClick={() => fileInputRef.current.click()} // Trigger Galeri/PDF
+                                    onClick={() => fileInputRef.current.click()}
                                     className="bg-white dark:bg-[#161d28] border border-[#E2E8F0] dark:border-[#1e2e40] p-5 rounded-[25px] flex flex-col items-center justify-center gap-3"
                                 >
                                     <FileText size={24} className="text-slate-500" />
-                                    <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500">IMPORT PDF</span>
+                                    <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500">{t('import_pdf_btn')}</span>
                                 </motion.button>
                             </div>
                         </motion.div>
                     )}
 
-                    {/* STEP ANALYZING & RESULTS (Sama seperti sebelumnya) */}
+                    {step === 1.5 && (
+                        <motion.div key="auto-redact" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6 w-full">
+                            <div className="relative rounded-3xl overflow-hidden border border-[#E2E8F0] dark:border-[#1e2e40] bg-black">
+                                {previewUrl && <img src={previewUrl} alt="Document Preview" className="w-full opacity-60 filter blur-[2px]" />}
+                                <motion.div initial={{ width: 0 }} animate={{ width: "60%" }} transition={{ duration: 1 }} className="absolute top-8 left-8 h-6 bg-black rounded" />
+                                <motion.div initial={{ width: 0 }} animate={{ width: "40%" }} transition={{ duration: 1, delay: 0.2 }} className="absolute top-16 left-8 h-6 bg-black rounded" />
+
+                                <div className="absolute inset-0 flex flex-col items-center justify-center">
+                                    <Activity size={32} className="text-[#1D9E75] mb-2 animate-bounce" />
+                                    <p className="text-[#1D9E75] font-black text-[10px] uppercase tracking-[0.3em] bg-black/80 px-4 py-2 rounded-full backdrop-blur-md">{t('auto_redacting')}</p>
+                                </div>
+                            </div>
+                        </motion.div>
+                    )}
+
                     {step === 2 && (
                         <motion.div key="analyzing" initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="space-y-10 w-full">
                             <div className="text-center space-y-3 mt-10">
@@ -244,11 +239,11 @@ export default function Scan() {
                                     <div className="absolute inset-0 rounded-full border-2 border-t-[#1D9E75] animate-spin"></div>
                                     <Activity size={24} className="text-[#1D9E75]" />
                                 </div>
-                                <h2 className="text-[#1D9E75] font-black text-xs uppercase tracking-[0.3em]">Analyzing Document</h2>
+                                <h2 className="text-[#1D9E75] font-black text-xs uppercase tracking-[0.3em]">{t('analyzing_document')}</h2>
                             </div>
                             <div className="space-y-4 bg-white dark:bg-[#161d28] p-6 rounded-[30px] border dark:border-[#1e2e40]">
                                 <div className="flex justify-between items-end text-[#1D9E75] px-1">
-                                    <p className="text-[10px] font-black uppercase">Progress</p>
+                                    <p className="text-[10px] font-black uppercase">{t('progress')}</p>
                                     <p className="text-lg font-black">{progress}%</p>
                                 </div>
                                 <div className="w-full h-1.5 bg-[#1e2e40] rounded-full overflow-hidden">
@@ -262,28 +257,49 @@ export default function Scan() {
                         <motion.div key="results" initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="w-full flex flex-col gap-6">
                             <div className="bg-[#1D9E75] text-white p-8 rounded-[40px] shadow-2xl relative overflow-hidden">
                                 <div className="relative z-10">
-                                    <h2 className="text-2xl font-black italic tracking-tighter mb-2">Analysis Complete</h2>
-                                    <p className="text-[10px] font-bold opacity-80 uppercase tracking-widest">AI Interpretation Ready</p>
+                                    <h2 className="text-2xl font-black italic tracking-tighter mb-2">{t('analysis_complete')}</h2>
+                                    <p className="text-[10px] font-bold opacity-80 uppercase tracking-widest">{t('ai_interpretation_ready')}</p>
                                 </div>
                             </div>
 
                             <div className="bg-white dark:bg-[#161d28] p-6 rounded-[30px] border dark:border-[#1e2e40] space-y-4">
-                                <h3 className="text-[10px] font-black text-[#1D9E75] uppercase tracking-[0.2em]">Key Metrics Found</h3>
+                                <h3 className="text-[10px] font-black text-[#1D9E75] uppercase tracking-[0.2em]">{t('key_metrics_found')}</h3>
                                 <div className="grid grid-cols-2 gap-3">
                                     {detectedValues.map((item, idx) => (
-                                        <div key={idx} className="bg-slate-50 dark:bg-[#0d1117] p-4 rounded-2xl border dark:border-[#1e2e40]">
-                                            <p className="text-[9px] font-bold text-slate-400 uppercase mb-1">{item.label}</p>
-                                            <p className="text-xl font-black dark:text-white">{item.value} <span className="text-[10px] font-bold text-slate-500">{item.unit}</span></p>
+                                        <div key={idx} className="bg-slate-50 dark:bg-[#0d1117] p-4 rounded-2xl border dark:border-[#1e2e40] relative group">
+                                            <p className="text-[9px] font-bold text-slate-400 uppercase mb-1 flex items-center gap-1">
+                                                {item.label}
+                                                <span className="text-red-500">*</span>
+                                            </p>
+                                            <div className="flex items-end gap-1">
+                                                <input
+                                                    type="number"
+                                                    value={item.value}
+                                                    onChange={(e) => {
+                                                        const newValues = [...detectedValues];
+                                                        newValues[idx].value = e.target.value;
+                                                        setDetectedValues(newValues);
+                                                    }}
+                                                    className="w-full text-xl font-black dark:text-white bg-transparent border-b-2 border-dashed border-[#1D9E75]/50 focus:border-[#1D9E75] outline-none transition-colors pb-1"
+                                                />
+                                                <span className="text-[10px] font-bold text-slate-500 mb-1">{item.unit}</span>
+                                            </div>
+                                            <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                <span className="text-[8px] bg-[#1D9E75]/20 text-[#1D9E75] px-2 py-1 rounded-full font-bold">Edit</span>
+                                            </div>
                                         </div>
                                     ))}
                                 </div>
+                                {detectedValues.length > 0 && (
+                                    <p className="text-[9px] text-red-500 font-bold mt-2 text-center italic">{t('verify_edit_warning')}</p>
+                                )}
                                 {detectedValues.length === 0 && (
-                                    <p className="text-xs text-slate-500 text-center py-4">No standard metrics detected.</p>
+                                    <p className="text-xs text-slate-500 text-center py-4">{t('no_standard_metrics_detected')}</p>
                                 )}
                             </div>
 
                             <div className="bg-white dark:bg-[#161d28] p-6 rounded-[30px] border dark:border-[#1e2e40] space-y-4">
-                                <h3 className="text-[10px] font-black text-[#1D9E75] uppercase tracking-[0.2em]">Clinical Interpretation</h3>
+                                <h3 className="text-[10px] font-black text-[#1D9E75] uppercase tracking-[0.2em]">{t('clinical_interpretation')}</h3>
                                 <div className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed font-medium">
                                     {aiResult.explanation}
                                 </div>
@@ -294,7 +310,7 @@ export default function Scan() {
                                 disabled={loading}
                                 className="w-full py-6 bg-[#1E293B] dark:bg-white text-white dark:text-[#161d28] rounded-[30px] font-black uppercase tracking-widest shadow-xl active:scale-95 transition-transform disabled:opacity-50"
                             >
-                                {loading ? "Saving..." : "Save to Dashboard"}
+                                {loading ? t('saving') : t('save_to_dashboard_btn')}
                             </button>
                         </motion.div>
                     )}

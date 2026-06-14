@@ -4,13 +4,14 @@ import { getFirestore } from "firebase/firestore";
 
 // Konfigurasi Firebase LabView AI
 const firebaseConfig = {
-    apiKey: "AIzaSyAyuReiTW9cFDevJyhC6bYce_GSAsUnRsk",
-    authDomain: "labview-86dbd.firebaseapp.com",
-    projectId: "labview-86dbd",
-    storageBucket: "labview-86dbd.firebasestorage.app",
-    messagingSenderId: "253168865000",
-    appId: "1:253168865000:web:2f42f0d7650cb4f293035d"
+    apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+    authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+    projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+    storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+    messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+    appId: import.meta.env.VITE_FIREBASE_APP_ID
 };
+
 
 // Inisialisasi Firebase
 const app = initializeApp(firebaseConfig);

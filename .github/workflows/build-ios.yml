@@ -1,0 +1,65 @@
+name: Build iOS IPA (Unsigned)
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build iOS IPA
+    runs-on: macos-14
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: labview_ai/package-lock.json
+
+      - name: Install Dependencies
+        run: |
+          cd labview_ai
+          npm ci --legacy-peer-deps || npm install --legacy-peer-deps
+
+      - name: Build Web Project
+        run: |
+          cd labview_ai
+          npm run build
+
+      - name: Sync Capacitor iOS
+        run: |
+          cd labview_ai
+          npx cap sync ios
+
+      - name: Build iOS Workspace (Unsigned)
+        run: |
+          cd labview_ai
+          xcodebuild -workspace ios/App/App.xcworkspace \
+            -scheme App \
+            -sdk iphoneos \
+            -configuration Debug \
+            -derivedDataPath build-derived-data \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            PROVISIONING_PROFILE="" \
+            clean build
+
+      - name: Create Unsigned IPA
+        run: |
+          cd labview_ai
+          mkdir -p build-derived-data/Payload
+          cp -r build-derived-data/Build/Products/Debug-iphoneos/App.app build-derived-data/Payload/
+          cd build-derived-data
+          zip -r App.ipa Payload
+
+      - name: Upload IPA Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-app-unsigned
+          path: labview_ai/build-derived-data/App.ipa

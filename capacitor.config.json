@@ -1,5 +1,5 @@
 {
   "appId": "com.example.app",
   "appName": "labview_ai",
-  "webDir": "dist"
+  "webDir": "labview_ai/dist"
 }

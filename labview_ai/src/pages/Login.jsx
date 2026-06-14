@@ -1,15 +1,34 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { auth, googleProvider } from '../firebase';
-import { signInWithEmailAndPassword, signInWithPopup } from 'firebase/auth';
+import { signInWithEmailAndPassword, signInWithPopup, signInWithCredential, GoogleAuthProvider } from 'firebase/auth';
 import { useNavigate, Link } from 'react-router-dom';
+import { Capacitor } from '@capacitor/core';
+import { GoogleAuth } from '@codetrix-studio/capacitor-google-auth';
 import { Eye, EyeOff, Activity, Fingerprint } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { useLanguage } from '../LanguageContext';
 
 export default function Login() {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
     const navigate = useNavigate();
+    const { t } = useLanguage();
+
+    useEffect(() => {
+        if (Capacitor.isNativePlatform()) {
+            try {
+                GoogleAuth.initialize({
+                    clientId: '253168865000-7qdmsnirg1hvd0f03si34fvs4bnh7h4c.apps.googleusercontent.com',
+                    androidClientId: '253168865000-8t6v311p7o520oldgd1j238r585uq7le.apps.googleusercontent.com',
+                    scopes: 'profile,email',
+                    grantOfflineAccess: true
+                });
+            } catch (e) {
+                console.error("GoogleAuth init error:", e);
+            }
+        }
+    }, []);
 
     const handleLogin = async (e) => {
         e.preventDefault();
@@ -17,16 +36,34 @@ export default function Login() {
             await signInWithEmailAndPassword(auth, email, password);
             navigate('/dashboard');
         } catch (error) {
-            alert("Login Gagal: Periksa kembali email dan password Anda.");
+            alert(t('login_failed'));
         }
     };
 
     const handleGoogleLogin = async () => {
         try {
-            await signInWithPopup(auth, googleProvider);
+            if (Capacitor.isNativePlatform()) {
+                await GoogleAuth.initialize({
+                    clientId: '253168865000-7qdmsnirg1hvd0f03si34fvs4bnh7h4c.apps.googleusercontent.com',
+                    androidClientId: '253168865000-8t6v311p7o520oldgd1j238r585uq7le.apps.googleusercontent.com',
+                    scopes: 'profile,email',
+                    grantOfflineAccess: true
+                });
+                try {
+                    await GoogleAuth.signOut();
+                } catch (signOutError) {
+                    console.log("No active Google session to sign out of:", signOutError);
+                }
+                const googleUser = await GoogleAuth.signIn();
+                const credential = GoogleAuthProvider.credential(googleUser.authentication.idToken);
+                await signInWithCredential(auth, credential);
+            } else {
+                await signInWithPopup(auth, googleProvider);
+            }
             navigate('/dashboard');
         } catch (error) {
-            console.error(error);
+            console.error("Google Login Error:", error);
+            alert(t('google_login_failed') + (error.message || JSON.stringify(error)));
         }
     };
 
@@ -56,13 +93,13 @@ export default function Login() {
                 </div>
 
                 <div className="text-center space-y-2 mb-10 relative z-10">
-                    <h1 className="text-3xl font-black text-[#1E293B] dark:text-[#f0f6ff] tracking-tight">LabView AI</h1>
-                    <p className="text-[11px] font-bold text-slate-500 dark:text-[#4a6080] tracking-[0.2em] uppercase">Medical Transformation Platform</p>
+                    <h1 className="text-3xl font-black text-[#1E293B] dark:text-[#f0f6ff] tracking-tight">{t('login_title')}</h1>
+                    <p className="text-[11px] font-bold text-slate-500 dark:text-[#4a6080] tracking-[0.2em] uppercase">{t('login_subtitle')}</p>
                 </div>
 
                 <form onSubmit={handleLogin} className="space-y-6 relative z-10">
                     <div className="space-y-2">
-                        <label className="text-[10px] font-black text-slate-500 dark:text-[#4a6080] uppercase tracking-[0.2em] ml-2">Email Address</label>
+                        <label className="text-[10px] font-black text-slate-500 dark:text-[#4a6080] uppercase tracking-[0.2em] ml-2">{t('email_address')}</label>
                         <input
                             type="email"
                             className="w-full bg-[#F8FAFC] dark:bg-[#0d1117] border border-[#E2E8F0] dark:border-[#1e2e40] rounded-[20px] py-4 px-5 text-sm text-[#1E293B] dark:text-[#f0f6ff] focus:outline-none focus:border-[#1D9E75] focus:ring-1 focus:ring-[#1D9E75] transition-all placeholder:text-slate-500 dark:text-[#4a6080]"
@@ -75,8 +112,8 @@ export default function Login() {
 
                     <div className="space-y-2">
                         <div className="flex justify-between items-center px-2">
-                            <label className="text-[10px] font-black text-slate-500 dark:text-[#4a6080] uppercase tracking-[0.2em]">Password</label>
-                            <button type="button" className="text-[10px] font-black text-[#1D9E75] uppercase hover:underline tracking-widest">Reset</button>
+                            <label className="text-[10px] font-black text-slate-500 dark:text-[#4a6080] uppercase tracking-[0.2em]">{t('password')}</label>
+                            <button type="button" className="text-[10px] font-black text-[#1D9E75] uppercase hover:underline tracking-widest">{t('reset')}</button>
                         </div>
                         <div className="relative">
                             <input
@@ -104,13 +141,13 @@ export default function Login() {
                         className="w-full bg-[#1D9E75] hover:bg-[#1D9E75]/90 text-white py-4 rounded-[20px] font-black text-[11px] uppercase tracking-[0.2em] shadow-[0_0_20px_rgba(29,158,117,0.3)] transition-all flex items-center justify-center gap-2 mt-4"
                     >
                         <Fingerprint size={16} />
-                        Authenticate
+                        {t('authenticate')}
                     </motion.button>
                 </form>
 
                 <div className="relative py-6 z-10">
                     <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-[#E2E8F0] dark:border-[#1e2e40]"></div></div>
-                    <div className="relative flex justify-center text-[10px] font-black uppercase text-slate-500 dark:text-[#4a6080] bg-[#FFFFFF] dark:bg-[#161d28] px-4 tracking-[0.2em]">Social Integration</div>
+                    <div className="relative flex justify-center text-[10px] font-black uppercase text-slate-500 dark:text-[#4a6080] bg-[#FFFFFF] dark:bg-[#161d28] px-4 tracking-[0.2em]">{t('social_integration')}</div>
                 </div>
 
                 <div className="w-full mb-6 relative z-10">
@@ -121,12 +158,12 @@ export default function Login() {
                         className="w-full flex items-center justify-center gap-3 bg-[#F8FAFC] dark:bg-[#0d1117] border border-[#E2E8F0] dark:border-[#1e2e40] py-4 rounded-[20px] hover:bg-[#1e2e40]/50 transition-colors text-xs font-bold text-[#1E293B] dark:text-[#f0f6ff] shadow-sm"
                     >
                         <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" className="w-4 h-4" alt="Google" />
-                        <span className="tracking-wide">Continue with Google</span>
+                        <span className="tracking-wide">{t('continue_with_google')}</span>
                     </motion.button>
                 </div>
 
                 <p className="text-center text-[11px] font-bold text-slate-500 dark:text-[#4a6080] relative z-10">
-                    UNREGISTERED? <Link to="/register" className="text-[#1D9E75] hover:underline uppercase tracking-wide ml-1">Register Now</Link>
+                    {t('unregistered')} <Link to="/register" className="text-[#1D9E75] hover:underline uppercase tracking-wide ml-1">{t('register_now')}</Link>
                 </p>
             </motion.div>
         </div>
