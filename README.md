@@ -145,13 +145,13 @@ cd Labview/labview_ai
 Buat file bernama .env di dalam folder root proyek (c:\Aqsa\labview_ai\labview_ai\.env) dan isi sesuai konfigurasi Firebase Console & API Key OpenRouter Anda:
 
 env
-VITE_FIREBASE_API_KEY=AIzaSyA12345...
-VITE_FIREBASE_AUTH_DOMAIN=labview-ai.firebaseapp.com
-VITE_FIREBASE_PROJECT_ID=labview-ai
-VITE_FIREBASE_STORAGE_BUCKET=labview-ai.appspot.com
-VITE_FIREBASE_MESSAGING_SENDER_ID=9876543210
-VITE_FIREBASE_APP_ID=1:9876543210:web:abcdef123456
-VITE_OPENROUTER_API_KEY=sk-or-v1-xxxxxx...
+VITE_FIREBASE_API_KEY=
+VITE_FIREBASE_AUTH_DOMAIN=
+VITE_FIREBASE_PROJECT_ID=
+VITE_FIREBASE_STORAGE_BUCKET=
+VITE_FIREBASE_MESSAGING_SENDER_ID=
+VITE_FIREBASE_APP_ID=
+VITE_OPENROUTER_API_KEY=
 3. Instal Dependensi Node
 bash
 npm install
